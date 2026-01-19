@@ -14,6 +14,10 @@ if "messages" not in st.session_state:
 
 # --- SIDEBAR: SETTINGS & BRANDING ---
 with st.sidebar:
+    st.divider()
+    st.subheader("📁 Knowledge Base")
+    uploaded_files = st.file_uploader("Upload a document or image ", type=["pdf", "docx", "txt", "png", "jpg"], accept_multiple_files=True)
+
     st.title("🤖 Buddy Settings")
 
     # Check .env first, if empty, use the input box
@@ -61,14 +65,25 @@ if user_query := st.chat_input("Ask Buddy something..."):
         st.markdown(user_query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Buddy is thinking..."):
+        with st.spinner("Buddy is analyzing..."):
             try:
+                content_list = [user_query]
+
+                if uploaded_files:
+                    for uploaded_files in uploaded_files:
+                        file_bytes = uploaded_files.read()
+                        mime_type = uploaded_files.type
+                        uploaded_files.seek(0)
+                        content_list.append(types.Part.from_bytes(
+                            data=file_bytes, 
+                            mime_type=mime_type))
+
                 # FIXED: New way to call the model with System Instructions
                 response = client.models.generate_content(
                     model="gemini-2.0-flash", 
-                    contents=user_query,
+                    contents=content_list,
                     config=types.GenerateContentConfig(
-                        system_instruction=instructions
+                        system_instruction=f"You are Buddy, Mode: {buddy_mode}. If a file is provided, analyze it deeply."
                     )
                 )
                 
