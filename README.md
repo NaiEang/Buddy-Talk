@@ -174,6 +174,11 @@ MIN_TIME_BETWEEN_REQUESTS = 3           # Rate limiting (seconds)
 - Ensure file type is supported
 - Check your internet connection
 
+### "ModuleNotFoundError: No module named 'htbuilder'"
+- The `htbuilder` package is required for Streamlit styling components
+- Install it using: `pip install htbuilder`
+- If using a virtual environment, ensure it's activated before installing
+
 ## 📚 Additional Resources
 
 - [Google Gemini API Documentation](https://ai.google.dev/docs)
