@@ -26,7 +26,6 @@ Buddy AI is an advanced multimodal AI assistant powered by Google Gemini that he
 
    ```bash
    git clone https://github.com/ratanaknoch/buddy_ai.git
-   cd buddy_ai/demo-ai-assistant
    ```
 
 2. **Create a virtual environment (recommended):**
