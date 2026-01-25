@@ -18,15 +18,40 @@ from collections import namedtuple
 import datetime
 import textwrap
 import time
+import json
+import hashlib
 
 import streamlit as st
 import google.generativeai as genai
+from google.oauth2 import id_token
+from google.auth.transport import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
+import requests as http_requests
 
 st.set_page_config(
     page_title="BUDDY AI", 
     page_icon="🤖",
     initial_sidebar_state="expanded"
 )
+
+# Initialize Firebase
+@st.cache_resource
+def init_firebase():
+    """Initialize Firebase Admin SDK."""
+    if not firebase_admin._apps:
+        firebase_creds = dict(st.secrets["firebase_credentials"])
+        cred = credentials.Certificate(firebase_creds)
+        firebase_admin.initialize_app(cred)
+    return firestore.client()
+
+# Initialize Firestore client
+db = init_firebase()
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = st.secrets.get("google_oauth_client_id")
+GOOGLE_CLIENT_SECRET = st.secrets.get("google_oauth_client_secret")
+REDIRECT_URI = "http://localhost:8501"
 
 # Custom CSS for light/dark mode theming
 light_mode_css = """
@@ -176,6 +201,185 @@ SUGGESTIONS = {
 }
 
 
+# Firebase Helper Functions
+def save_user_to_firestore(user_info):
+    """Save or update user information in Firestore."""
+    try:
+        user_ref = db.collection('users').document(user_info['user_id'])
+        user_data = {
+            'email': user_info['email'],
+            'name': user_info.get('name', ''),
+            'picture': user_info.get('picture', ''),
+            'last_login': firestore.SERVER_TIMESTAMP,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Check if user exists
+        if user_ref.get().exists:
+            # Update only last_login for existing users
+            user_ref.update({'last_login': firestore.SERVER_TIMESTAMP})
+        else:
+            # Create new user
+            user_ref.set(user_data)
+        
+        return True
+    except Exception as e:
+        st.error(f"Error saving user: {str(e)}")
+        return False
+
+
+def save_chat_to_firestore(user_id, session_id, messages, title):
+    """Save chat session to Firestore."""
+    try:
+        chat_ref = db.collection('users').document(user_id).collection('chats').document(session_id)
+        chat_data = {
+            'title': title,
+            'messages': messages,
+            'updated_at': firestore.SERVER_TIMESTAMP,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        chat_ref.set(chat_data, merge=True)
+        return True
+    except Exception as e:
+        st.error(f"Error saving chat: {str(e)}")
+        return False
+
+
+def load_user_chats(user_id):
+    """Load all chat sessions for a user from Firestore."""
+    try:
+        chats_ref = db.collection('users').document(user_id).collection('chats')
+        chats = chats_ref.order_by('updated_at', direction=firestore.Query.DESCENDING).stream()
+        
+        chat_sessions = {}
+        for chat in chats:
+            chat_data = chat.to_dict()
+            chat_sessions[chat.id] = {
+                'title': chat_data.get('title', 'Untitled Chat'),
+                'messages': chat_data.get('messages', []),
+                'timestamp': chat_data.get('updated_at', datetime.datetime.now()).isoformat() if chat_data.get('updated_at') else datetime.datetime.now().isoformat()
+            }
+        
+        return chat_sessions
+    except Exception as e:
+        st.error(f"Error loading chats: {str(e)}")
+        return {}
+
+
+def delete_chat_from_firestore(user_id, session_id):
+    """Delete a chat session from Firestore."""
+    try:
+        db.collection('users').document(user_id).collection('chats').document(session_id).delete()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting chat: {str(e)}")
+        return False
+
+
+# Google OAuth Helper Functions
+def get_authorization_url():
+    """Generate Google OAuth authorization URL."""
+    from urllib.parse import urlencode
+    params = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'redirect_uri': REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'openid email profile',
+        'access_type': 'online',
+        'state': 'security_token'
+    }
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    return auth_url
+
+
+def google_auth_button():
+    """Display Google Sign-In button with OAuth flow."""
+    auth_url = get_authorization_url()
+    
+    st.markdown(f"""
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
+        <div style="text-align: center; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h1 style="color: #1f2937; margin-bottom: 0.5rem;">🤖 Welcome to Buddy AI</h1>
+            <p style="color: #6b7280; margin-bottom: 2rem;">Your AI-powered second brain assistant</p>
+            <a href="{auth_url}" target="_self" style="
+                display: inline-flex;
+                align-items: center;
+                gap: 12px;
+                background: white;
+                color: #1f2937;
+                padding: 12px 24px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 16px;
+                border: 2px solid #e5e7eb;
+                transition: all 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            " onmouseover="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.borderColor='#3b82f6';" 
+               onmouseout="this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'; this.style.borderColor='#e5e7eb';">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign in with Google
+            </a>
+            <p style="color: #9ca3af; font-size: 14px; margin-top: 1.5rem;">Sign in to save your chat history and access it anytime</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def exchange_code_for_token(code):
+    """Exchange authorization code for access token and ID token."""
+    token_url = "https://oauth2.googleapis.com/token"
+    
+    data = {
+        'code': code,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'redirect_uri': REDIRECT_URI,
+        'grant_type': 'authorization_code'
+    }
+    
+    try:
+        response = http_requests.post(token_url, data=data)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error exchanging code for token: {str(e)}")
+        return None
+
+
+def verify_google_token(id_token_str):
+    """Verify Google ID token and extract user information."""
+    try:
+        # Add clock skew tolerance of 10 seconds to handle time differences
+        idinfo = id_token.verify_oauth2_token(
+            id_token_str, 
+            requests.Request(), 
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10
+        )
+        
+        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            raise ValueError('Wrong issuer.')
+        
+        user_info = {
+            'user_id': idinfo['sub'],
+            'email': idinfo['email'],
+            'name': idinfo.get('name', ''),
+            'picture': idinfo.get('picture', ''),
+            'email_verified': idinfo.get('email_verified', False)
+        }
+        
+        return user_info
+    except Exception as e:
+        st.error(f"Token verification failed: {str(e)}")
+        return None
+
+
 def build_prompt(**kwargs):
     """Builds a prompt string with the kwargs as HTML-like tags."""
     prompt = []
@@ -227,14 +431,67 @@ st.subheader("Powered by Google Gemini")
 # Initialize Gemini
 client = get_gemini_client()
 
+# Check for authentication code in URL
+query_params = st.query_params
+if "code" in query_params:
+    auth_code = query_params["code"]
+    
+    # Exchange code for tokens
+    token_response = exchange_code_for_token(auth_code)
+    
+    if token_response and 'id_token' in token_response:
+        # Verify ID token and get user info
+        user_info = verify_google_token(token_response['id_token'])
+        
+        if user_info:
+            st.session_state.user = user_info
+            save_user_to_firestore(user_info)
+            # Clear URL parameters
+            st.query_params.clear()
+            st.rerun()
+    else:
+        st.error("Authentication failed. Please try again.")
+        st.query_params.clear()
+
+# Authentication Check
+if "user" not in st.session_state:
+    google_auth_button()
+    st.stop()
+
+# User is authenticated - show app
+user = st.session_state.user
+
+# Load user's chat history from Firestore on first load
+if "chats_loaded" not in st.session_state:
+    st.session_state.chat_sessions = load_user_chats(user['user_id'])
+    st.session_state.chats_loaded = True
+
 # Initialize chat history storage
-if "chat_sessions" not in st.session_state:
-    st.session_state.chat_sessions = {}
 if "current_session_id" not in st.session_state:
     st.session_state.current_session_id = None
 
 # Sidebar - Chat Management
 with st.sidebar:
+    # User Profile Section
+    st.markdown("### 👤 Profile")
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if user.get('picture'):
+            st.image(user['picture'], width=50)
+        else:
+            st.markdown("👤")
+    with col2:
+        st.markdown(f"**{user.get('name', 'User')}**")
+        st.caption(user.get('email', ''))
+    
+    if st.button("🚪 Sign Out", use_container_width=True):
+        # Clear session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+    
+    st.divider()
+    
     st.markdown("### 💬 Chat Management")
     
     # New Chat button
@@ -248,6 +505,9 @@ with st.sidebar:
         }
         st.session_state.current_session_id = new_id
         st.session_state.messages = []
+        
+        # Save new chat to Firestore
+        save_chat_to_firestore(user['user_id'], new_id, [], f"Chat {len(st.session_state.chat_sessions)}")
         st.rerun()
     
     st.divider()
@@ -276,6 +536,7 @@ with st.sidebar:
             with col2:
                 if st.button("🗑️", key=f"delete_{session_id}", help="Delete chat"):
                     del st.session_state.chat_sessions[session_id]
+                    delete_chat_from_firestore(user['user_id'], session_id)
                     if st.session_state.current_session_id == session_id:
                         st.session_state.current_session_id = None
                         st.session_state.messages = []
@@ -287,7 +548,9 @@ with st.sidebar:
     st.markdown("""
     **About this assistant:**
     - Powered by Google Gemini
-    - Builded on Streamlit
+    - Built on Streamlit
+    - 🔐 Authenticated & Secure
+    - 💾 Auto-saves chat history
     """)
 
 # Chat interface
@@ -346,6 +609,14 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
     
+    # Save to Firestore
+    save_chat_to_firestore(
+        user['user_id'],
+        st.session_state.current_session_id,
+        st.session_state.messages,
+        st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
+    )
+    
     # Display the user's message immediately
     with st.chat_message("user"):
         st.write(user_input)
@@ -381,11 +652,26 @@ if user_input:
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 # Save to session
                 st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+                
+                # Save to Firestore
+                save_chat_to_firestore(
+                    user['user_id'],
+                    st.session_state.current_session_id,
+                    st.session_state.messages,
+                    st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
+                )
+                
                 st.session_state.last_request_time = now
                 
             except Exception as e:
                 error_msg = f"❌ Error generating response: {str(e)}"
                 st.error(error_msg)
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                # Save error to session
+                # Save error to session and Firestore
                 st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+                save_chat_to_firestore(
+                    user['user_id'],
+                    st.session_state.current_session_id,
+                    st.session_state.messages,
+                    st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
+                )
