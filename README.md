@@ -1,21 +1,23 @@
-# Buddy AI 🤖 — Your Instant Second Brain (With Authentication)
+# Buddy AI 🤖 — Your Instant Second Brain
 
 Buddy AI is an advanced multimodal AI assistant powered by Google Gemini that helps you analyze and understand files like never before. Upload PDFs, videos, or audio files and get intelligent, timestamped answers with direct citations.
 
-**Now with Google Authentication & Cloud Storage!** Your chats are automatically saved and synced across sessions.
+**Works instantly without login!** Optionally sign in with Google to save and sync your chat history across sessions.
 
 ## 🌟 Features
 
-- **🔐 Google Authentication**: Secure sign-in with your Google account
-- **💾 Auto-Save Chat History**: All conversations automatically saved to Firebase Firestore
+- **🚀 No Login Required**: Start chatting immediately — authentication is optional
+- **🔐 Google Authentication**: Sign in to save your chat history across sessions
+- **💾 Auto-Save Chat History**: Conversations automatically saved to Firebase Firestore when signed in
 - **☁️ Cloud Sync**: Access your chat history from anywhere
-- **Multimodal File Analysis**: Support for PDFs (100+ pages), videos (up to 2 hours), and audio files
-- **Intelligent Responses**: Get timestamped references, direct citations, and page numbers
-- **General AI Assistant**: Ask any question - coding, problem-solving, explanations, or general conversation
-- **Chat Management**: Create multiple chat sessions, navigate history, and organize conversations
-- **File Upload**: Drag-and-drop support for multiple files with instant analysis
-- **Streaming Responses**: Real-time word-by-word responses for better user experience
-- **Clean Interface**: Modern, intuitive design built with Streamlit
+- **🎭 Persona System**: Switch between Default, Academic, Friendly, and Personal Therapist personas — or create your own
+- **📝 Smart Chat Titles**: Chat titles auto-generated from your first message
+- **📎 Multimodal File Analysis**: Support for PDFs (100+ pages), videos (up to 2 hours), and audio files
+- **🤖 Intelligent Responses**: Get timestamped references, direct citations, and page numbers
+- **💬 General AI Assistant**: Ask any question — coding, problem-solving, explanations, or general conversation
+- **📂 Chat Management**: Create multiple chat sessions, navigate history, and organize conversations
+- **📤 File Upload**: Drag-and-drop support for multiple files with instant analysis
+- **🎨 Clean Interface**: Modern, intuitive design built with Streamlit
 
 ## 🚀 Getting Started
 
@@ -127,24 +129,18 @@ universe_domain = "googleapis.com"
 2. **Start the Streamlit app:**
 
    ```bash
-   streamlit run streamlit_app_gemini.py
+   streamlit run streamlit_app.py
    ```
 
    The app will start on `http://localhost:8501`
 
-3. **Sign in with Google:**
+3. **Start chatting right away:**
 
-   - Click the "Sign in with Google" button
-   - Authorize the app with your Google account
-   - You'll be redirected back to the app after authentication
-
-4. **Start chatting:**
-
-   - Your profile will appear in the sidebar
-   - All chats are automatically saved to Firebase
+   - No sign-in required — just type and chat!
+   - Optionally click "Sign in with Google" to save your history
    - Upload files (PDF, video, audio) for analysis
+   - Switch personas from the sidebar
    - Create multiple chat sessions
-   - Sign out anytime from the sidebar
 
 ## 🔐 Authentication & Data Storage
 
@@ -183,8 +179,18 @@ Firestore:
 Buddy-Talk/
 ├── .streamlit/
 │   └── secrets.toml                 # API keys and credentials (create this)
-├── venv/                            # Virtual environment (after creation)
-├── streamlit_app_gemini.py          # Main application with authentication
+├── asset/
+│   └── icon.png                     # App icon/logo
+├── backend/
+│   ├── __init__.py
+│   ├── auth_service.py              # Google OAuth 2.0 authentication
+│   ├── firebase_service.py          # Firestore database operations
+│   └── gemini_service.py            # Google Gemini API integration
+├── frontend/
+│   ├── __init__.py
+│   └── ui_components.py             # Sidebar, chat UI, personas
+├── test/                            # Backup/test files
+├── streamlit_app.py                 # Main application entry point
 ├── check_models.py                  # Utility to check available models
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # This file
@@ -194,8 +200,9 @@ Buddy-Talk/
 
 - **Frontend**: Streamlit
 - **AI Model**: Google Gemini 2.5 Flash
-- **Authentication**: Google OAuth 2.0
+- **Authentication**: Google OAuth 2.0 (optional)
 - **Database**: Firebase Firestore
+- **Architecture**: Modular (backend/frontend separation)
 - **Language**: Python 3.12+
 - **Key Libraries**: 
   - `streamlit` - Web framework
@@ -205,12 +212,15 @@ Buddy-Talk/
 
 ## 🔧 Configuration Options
 
-You can customize the app by modifying these parameters in `streamlit_app_gemini.py`:
+You can customize the app by modifying these parameters:
 
 ```python
-MODEL = "gemini-2.5-flash"              # AI model to use
-HISTORY_LENGTH = 5                       # Number of messages in context
+# streamlit_app.py
 MIN_TIME_BETWEEN_REQUESTS = 3           # Rate limiting (seconds)
+generate_chat_title(max_length=20)      # Chat title length
+
+# backend/gemini_service.py
+MODEL = "gemini-2.5-flash"              # AI model to use
 ```
 
 ## 💡 Usage Tips
@@ -244,7 +254,7 @@ MIN_TIME_BETWEEN_REQUESTS = 3           # Rate limiting (seconds)
   .\venv\Scripts\activate
   
   # Then run Streamlit
-  streamlit run streamlit_app_gemini.py
+  streamlit run streamlit_app.py
   ```
 
 ### "Token verification failed: Token used too early"
@@ -287,7 +297,7 @@ MIN_TIME_BETWEEN_REQUESTS = 3           # Rate limiting (seconds)
   pkill -f streamlit             # macOS/Linux
   
   # Or specify a different port
-  streamlit run streamlit_app_gemini.py --server.port=8502
+  streamlit run streamlit_app.py --server.port=8502
   ```
   - Remember to update OAuth redirect URI if you change the port!
 
@@ -349,23 +359,6 @@ Built with ❤️ for your AI assistant needs.
 ---
 
 **Happy chatting with Buddy AI!** 🤖✨
-- [Development Report](DEVELOPMENT_REPORT.md) - Detailed feature documentation
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to:
-- Report bugs
-- Suggest new features
-- Submit pull requests
-
-## 📄 License
-
-This project is developed for educational purposes.
-
-## 👨‍💻 Author
-
-Developed by ratanaknoch
-
 ---
 
-**Note**: This project uses Google's Gemini API. Make sure you comply with [Google's API Terms of Service](https://ai.google.dev/terms) when using this application.
+**Happy chatting with Buddy AI!** 🤖✨
