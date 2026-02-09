@@ -54,6 +54,12 @@ def generate_chat_title(first_message: str, max_length: int = 20) -> str:
     
     return title if title else "New Chat"
 
+# Server-side session store (persists across page refreshes)
+@st.cache_resource
+def get_session_store():
+    """Persistent session store that survives page refreshes."""
+    return {}
+
 # Initialize session state
 if "chat_sessions" not in st.session_state:
     st.session_state.chat_sessions = {}
@@ -75,6 +81,16 @@ if "messages" not in st.session_state:
 
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = None
+
+# Restore session from server-side store on page refresh
+if not st.session_state.user and "session" in st.query_params:
+    session_token = st.query_params["session"]
+    session_data = get_session_store().get(session_token)
+    if session_data:
+        st.session_state.user = session_data["user"]
+        st.session_state.chat_sessions = session_data.get("chats", {})
+        st.session_state.selected_persona = session_data.get("selected_persona", "Default")
+        st.session_state.custom_personas = session_data.get("custom_personas", {})
 
 # Get Gemini client
 client = get_gemini_client()
@@ -109,8 +125,16 @@ if 'code' in query_params and not user:
             chats = load_user_chats(user['user_id'])
             st.session_state.chat_sessions = chats
             
-            # Clear auth parameters from URL
+            # Store session server-side for refresh persistence
+            session_token = str(uuid.uuid4())
+            get_session_store()[session_token] = {
+                "user": user,
+                "chats": chats
+            }
+            
+            # Clear auth code, keep session token in URL
             st.query_params.clear()
+            st.query_params["session"] = session_token
             st.rerun()
         else:
             st.error("Failed to verify token")
@@ -205,6 +229,13 @@ if user_input:
                     )
                 
                 st.session_state.last_request_time = now
+                
+                # Sync session store for refresh persistence
+                if "session" in st.query_params:
+                    store = get_session_store()
+                    token = st.query_params["session"]
+                    if token in store:
+                        store[token]["chats"] = st.session_state.chat_sessions
                 
             except Exception as e:
                 error_msg = f"❌ Error generating response: {str(e)}"

@@ -268,6 +268,17 @@ def render_sidebar(user):
             st.markdown(f"**{user.get('name', 'User')}**")
         
         if st.sidebar.button("Sign Out", key="signout", use_container_width=True):
+            # Clear server-side session store
+            if "session" in st.query_params:
+                try:
+                    from streamlit_app import get_session_store
+                    token = st.query_params["session"]
+                    store = get_session_store()
+                    if token in store:
+                        del store[token]
+                except ImportError:
+                    pass
+            st.query_params.clear()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
