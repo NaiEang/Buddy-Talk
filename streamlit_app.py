@@ -182,8 +182,12 @@ if user_input:
                         gemini_file = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
                         gemini_files.append(gemini_file)
                 
+                # Get selected persona instruction
+                all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
+                persona_instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
+                
                 # Get response from Gemini
-                response = get_response(user_input, client, gemini_files)
+                response = get_response(user_input, client, gemini_files, system_instruction=persona_instruction)
                 
                 # Display response
                 st.write(response)

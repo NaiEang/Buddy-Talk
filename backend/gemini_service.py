@@ -11,18 +11,22 @@ def get_gemini_client():
     return genai
 
 
-def get_response(question, client, uploaded_files=None):
+def get_response(question, client, uploaded_files=None, system_instruction=None):
     """Get response from Gemini API."""
     try:
-        model = client.GenerativeModel("gemini-2.5-flash")
+        model = client.GenerativeModel(
+            "gemini-2.5-flash",
+            system_instruction=system_instruction
+        )
         
         # Build content parts
-        content_parts = [question]
+        content_parts = []
         
         if uploaded_files:
-            for file_info in uploaded_files:
-                if file_info.get("type") == "text":
-                    content_parts.append(file_info["content"])
+            for file in uploaded_files:
+                content_parts.append(file)
+        
+        content_parts.append(question)
         
         # Get response
         response = model.generate_content(content_parts)
