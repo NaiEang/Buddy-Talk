@@ -271,7 +271,7 @@ def render_sidebar(user):
             # Clear server-side session store
             if "session" in st.query_params:
                 try:
-                    from streamlit_app import get_session_store
+                    from backend.session_store import get_session_store
                     token = st.query_params["session"]
                     store = get_session_store()
                     if token in store:
