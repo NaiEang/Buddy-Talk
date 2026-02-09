@@ -54,11 +54,8 @@ def generate_chat_title(first_message: str, max_length: int = 20) -> str:
     
     return title if title else "New Chat"
 
-# Server-side session store (persists across page refreshes)
-@st.cache_resource
-def get_session_store():
-    """Persistent session store that survives page refreshes."""
-    return {}
+# Import session store from backend (avoids circular imports)
+from backend.session_store import get_session_store
 
 # Initialize session state
 if "chat_sessions" not in st.session_state:
