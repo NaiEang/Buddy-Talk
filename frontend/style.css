@@ -1,0 +1,34 @@
+/* frontend/styles.css */
+
+/* Target the Popover Button */
+div[data-testid="stPopover"] > button {
+    height: 44px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    border-radius: 10px !important;
+    background-color: #262730 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin-bottom: 2px !important;
+}
+
+/* HIDE THE DOWN ARROW/CHEVRON */
+div[data-testid="stPopover"] button svg:nth-child(2),
+div[data-testid="stPopover"] [data-testid="stIconInline"],
+div[data-testid="stPopover"] span svg {
+    display: none !important;
+}
+
+/* Alignment of the bar container */
+div[data-testid="stHorizontalBlock"] {
+    align-items: flex-end !important;
+}
+
+/* Styling the clip icon */
+div[data-testid="stPopover"] p {
+    font-size: 20px !important;
+    margin: 0 !important;
+}

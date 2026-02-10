@@ -3,6 +3,7 @@ import streamlit as st
 import datetime
 import uuid
 import textwrap
+import os
 from backend.auth_service import get_authorization_url
 
 
@@ -57,7 +58,13 @@ PERSONAS = {
     """)
 }
 
-
+def load_css(file_path):
+    """Read css file and return as markdown string."""
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            return f"<style>{f.read()}</style>"
+    return ""
+    
 def render_auth_button():
     """Display Google Sign-In button with OAuth flow."""
     auth_url = get_authorization_url()
@@ -312,45 +319,63 @@ def render_sidebar(user):
         </a>
         """, unsafe_allow_html=True)
 
-
 def render_chat_interface():
-    """Render the chat interface."""
-    # Initialize messages list
+    css_content = load_css("frontend/styles.css")
+    if css_content:
+        st.markdown(css_content, unsafe_allow_html=True)
+
+    # 1. INITIALIZE STATE FIRST (Always do this before rendering)
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
-    if "last_request_time" not in st.session_state:
-        st.session_state.last_request_time = None
-    
-    # Display chat history
+    if "uploaded_files" not in st.session_state:
+        st.session_state.uploaded_files = None    
+
+    # 3. TOP UPLOADER (ONLY shows when there are NO messages)
+    if len(st.session_state.messages) == 0:
+        st.markdown("### 📎 Upload Files")
+        st.caption("Upload PDFs, videos, or audio files for Buddy to analyze")
+        
+        # We put the uploader INSIDE the if statement
+        top_upload = st.file_uploader(
+            "Initial context for your second brain",
+            type=["pdf", "mp4", "avi", "mov", "mp3", "wav", "m4a"],
+            accept_multiple_files=True,
+            key="initial_drop_zone",
+            label_visibility="collapsed"
+        )
+        if top_upload:
+            st.session_state.uploaded_files = top_upload
+            st.success(f"✅ {len(top_upload)} files selected.")
+        
+        st.markdown("---") # Visual divider
+
+    # 4. DISPLAY CHAT HISTORY (The messages go here)
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.write(message["content"])
-    
-    # File uploader
-    st.markdown("### 📎 Upload Files")
-    uploaded_files = st.file_uploader(
-        "Upload PDFs, videos, or audio files for Buddy to analyze",
-        type=["pdf", "mp4", "avi", "mov", "mp3", "wav", "m4a"],
-        accept_multiple_files=True,
-        help="Upload PDFs (100+ pages), videos (up to 2 hours), or audio files"
-    )
-    
-    # Store uploaded files in session state
-    if uploaded_files:
-        st.session_state.uploaded_files = uploaded_files
-        with st.container():
-            cols = st.columns(4)
-            for idx, file in enumerate(uploaded_files):
-                with cols[idx % 4]:
-                    st.success(f"✅ {file.name}")
-    else:
-        st.session_state.uploaded_files = None
-    
-    # Chat input with dynamic placeholder
-    if st.session_state.messages:
-        placeholder_text = "Ask your Buddy a follow up..."
-    else:
-        placeholder_text = "Ask your Buddy something..."
-    
-    return st.chat_input(placeholder_text)
+            st.markdown(message["content"])
+
+    # 5. FIXED PERMANENT BOTTOM SECTION (The bar at the bottom)
+    with st.container():
+        # Using a container helps anchor the elements to the bottom
+        col_icon, col_bar = st.columns([1.5, 15], vertical_alignment="center")
+
+        with col_icon:
+            with st.popover("📎", help="Attach or update files"):
+                st.markdown("#### Knowledge Base")
+                more_files = st.file_uploader(
+                    "Add files...",
+                    type=["pdf", "mp4", "avi", "mov", "mp3", "wav", "m4a"],
+                    accept_multiple_files=True,
+                    label_visibility="collapsed",
+                    key="chat_clipper_icon"
+                )
+                if more_files:
+                    st.session_state.uploaded_files = more_files
+
+        with col_bar:
+            # Note: prompt_text is inside col_bar context
+            prompt_text = "Ask Buddy something..." if not st.session_state.messages else "Ask a follow-up..."
+            user_input = st.chat_input(prompt_text)
+            
+    return user_input

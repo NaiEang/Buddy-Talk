@@ -6,6 +6,15 @@ Main application file with clean modular architecture
 import streamlit as st
 import datetime
 import uuid
+import time
+from backend.firebase_service import (
+    save_user_to_firestore, save_chat_to_firestore, load_user_chats, get_db
+)
+from backend.auth_service import (
+    init_google_oauth, get_authorization_url, exchange_code_for_token, verify_google_token
+)
+from backend.gemini_service import get_gemini_client, get_response
+from frontend.ui_components import render_auth_button, render_sidebar, render_chat_interface, PERSONAS
 
 # Configure page
 st.set_page_config(
@@ -14,20 +23,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Import backend services
-from backend.firebase_service import (
-    save_user_to_firestore, save_chat_to_firestore, load_user_chats, get_db
-)
-from backend.auth_service import (
-    init_google_oauth, get_authorization_url, exchange_code_for_token, verify_google_token
-)
-from backend.gemini_service import get_gemini_client, get_response
-
-# Import frontend components
-from frontend.ui_components import render_auth_button, render_sidebar, render_chat_interface, PERSONAS
-
-# Initialize Google OAuth
 init_google_oauth()
+client = get_gemini_client()
 
 # Rate limiting constant
 MIN_TIME_BETWEEN_REQUESTS = datetime.timedelta(seconds=3)
@@ -79,6 +76,9 @@ if "messages" not in st.session_state:
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = None
 
+# Get user from session state after initialization
+user = st.session_state.user
+
 # Restore session from server-side store on page refresh
 if not st.session_state.user and "session" in st.query_params:
     session_token = st.query_params["session"]
@@ -90,11 +90,11 @@ if not st.session_state.user and "session" in st.query_params:
         st.session_state.custom_personas = session_data.get("custom_personas", {})
 
 # Get Gemini client
-client = get_gemini_client()
+
 
 # Check for OAuth callback
 query_params = st.query_params
-user = st.session_state.user
+
 
 if 'code' in query_params and not user:
     """Handle OAuth callback"""
@@ -193,30 +193,37 @@ if user_input:
     else:
         with st.chat_message("assistant"):
             try:
-                # Prepare uploaded files for Gemini
-                gemini_files = None
+                gemini_files = []
                 if st.session_state.get('uploaded_files'):
-                    gemini_files = []
                     for uploaded_file in st.session_state.uploaded_files:
-                        # Upload file to Gemini
-                        import google.generativeai as genai
-                        gemini_file = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
-                        gemini_files.append(gemini_file)
+                        with st.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
+                        # 1. Upload to Gemini File API
+                            import google.generativeai as genai
+                        myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
+                
+                        # 2. WAIT/POLL logic: Check if the file is ready
+                        while myfile.state.name == "PROCESSING":
+                            time.sleep(2) # Wait for 2 seconds
+                            myfile = genai.get_file(myfile.name) # Refresh file info from Google
+                
+                        if myfile.state.name == "FAILED":
+                            raise Exception(f"File {uploaded_file.name} failed to process.")
+                
+                        status.update(label=f"✅ {uploaded_file.name} is ready!", state="complete")
+                        gemini_files.append(myfile)
                 
                 # Get selected persona instruction
                 all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
                 persona_instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
                 
-                # Get response from Gemini
-                response = get_response(user_input, client, gemini_files, system_instruction=persona_instruction)
-                
-                # Display response
-                st.write(response)
-                
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                
-                # Save to session and Firestore (only if logged in)
+                with st.spinner("Buddy is thinking..."):
+                    response_text = get_response(user_input, client, gemini_files, system_instruction=persona_instruction)
+                    st.markdown(response_text)
+
+                #save reponse to state
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
                 st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+
                 if user:
                     save_chat_to_firestore(
                         user['user_id'],
@@ -233,6 +240,8 @@ if user_input:
                     token = st.query_params["session"]
                     if token in store:
                         store[token]["chats"] = st.session_state.chat_sessions
+
+                st.rerun()
                 
             except Exception as e:
                 error_msg = f"❌ Error generating response: {str(e)}"
