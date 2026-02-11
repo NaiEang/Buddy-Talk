@@ -1,0 +1,146 @@
+/* ============================================================
+   BUDDY AI — Global Stylesheet
+   Loaded once in streamlit_app.py right after st.set_page_config
+   ============================================================ */
+
+/* ── 1. Top spacing for main content (ALL pages) ─────────── */
+/*    Broadest possible selector set so this never fails.     */
+.block-container,
+.stMainBlockContainer,
+[data-testid="stMainBlockContainer"],
+.stAppViewBlockContainer,
+[data-testid="stAppViewBlockContainer"],
+.main .block-container {
+    padding-top: 3rem !important;
+    padding-bottom: 80px !important;
+}
+
+/* ── 2. Bottom chat-input bar ────────────────────────────── */
+[data-testid="stBottom"] {
+    padding: 8px 16px 12px 16px !important;
+    background-color: var(--background-color, #0e1117) !important;
+    z-index: 999 !important;
+}
+
+/* ── 3. Chat messages ────────────────────────────────────── */
+.messages-scroll-container {
+    max-height: calc(100vh - 150px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 8px !important;
+}
+
+.stChatMessage {
+    overflow: visible !important;
+}
+
+.stMarkdown {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+}
+
+/* ── 4. Upload / action buttons ──────────────────────────── */
+[data-testid="stBottom"] .stPopover > button {
+    height: 42px !important;
+    min-width: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    border-radius: 10px !important;
+    padding: 0 !important;
+}
+
+button[kind="secondary"] {
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 0px 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    border-radius: 6px !important;
+}
+
+/* ── 5. Stop-generating button — fixed at bottom center ── */
+[class*="st-key-stop_gen_btn"] {
+    position: fixed !important;
+    bottom: 68px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 999 !important;
+    width: auto !important;
+}
+
+[class*="st-key-stop_gen_btn"] button {
+    background-color: rgba(31, 41, 55, 0.95) !important;
+    color: #d1d5db !important;
+    border: 1px solid #4b5563 !important;
+    border-radius: 20px !important;
+    font-size: 13px !important;
+    padding: 6px 20px !important;
+    backdrop-filter: blur(8px) !important;
+    white-space: nowrap !important;
+}
+
+[class*="st-key-stop_gen_btn"] button:hover {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    color: #ef4444 !important;
+    border-color: #ef4444 !important;
+}
+
+/* ── 6. Copy & Edit action buttons on messages ──────────── */
+.msg-action-btn {
+    background: transparent;
+    color: #6b7280;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 4px;
+}
+.msg-action-btn:hover {
+    background: rgba(129, 140, 248, 0.1);
+    color: #818cf8;
+    border-color: #818cf8;
+}
+
+/* Edit button styling — positioned to top-right of user message */
+/* Make the user chat message container a positioning context */
+[data-testid="stChatMessage"]:has([class*="st-key-edit_btn_"]) {
+    position: relative !important;
+}
+[class*="st-key-edit_btn_"] {
+    position: absolute !important;
+    top: 50% !important;
+    right: 8px !important;
+    transform: translateY(-50%) !important;
+    z-index: 10 !important;
+}
+[class*="st-key-edit_btn_"] button {
+    background: transparent !important;
+    color: #4b5563 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    padding: 4px !important;
+    height: 34px !important;
+    width: 34px !important;
+    min-height: 34px !important;
+    min-width: 34px !important;
+    max-height: 34px !important;
+    max-width: 34px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0.4 !important;
+    transition: opacity 0.15s ease, background 0.15s ease !important;
+    line-height: 1 !important;
+}
+[class*="st-key-edit_btn_"] button:hover {
+    opacity: 1 !important;
+    color: #818cf8 !important;
+    background: rgba(129, 140, 248, 0.12) !important;
+}

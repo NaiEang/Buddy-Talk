@@ -35,6 +35,47 @@ def get_response(question, client, uploaded_files=None, system_instruction=None)
         return f"Error in Gemini API: {str(e)}"
 
 
+def get_response_streaming(question, client, uploaded_files=None, system_instruction=None, chat_history=None):
+    """Get streaming response from Gemini API - yields text chunks.
+    
+    Uses Gemini's multi-turn chat so the model sees the full conversation.
+    chat_history should be a list of {"role": "user"|"assistant", "content": str}.
+    """
+    try:
+        model = client.GenerativeModel(
+            "gemini-2.5-flash",
+            system_instruction=system_instruction
+        )
+        
+        # Convert chat history to Gemini format for multi-turn context
+        gemini_history = []
+        if chat_history:
+            for msg in chat_history:
+                # Map our roles to Gemini roles (assistant -> model)
+                role = "model" if msg["role"] == "assistant" else "user"
+                gemini_history.append({"role": role, "parts": [msg["content"]]})
+        
+        # Start a chat session with the history (excludes the current question)
+        chat = model.start_chat(history=gemini_history)
+        
+        # Build content parts for the current message
+        content_parts = []
+        if uploaded_files:
+            for file in uploaded_files:
+                content_parts.append(file)
+        content_parts.append(question)
+        
+        # Send the current message and stream the response
+        response = chat.send_message(content_parts, stream=True)
+        
+        # Yield each chunk of text as it arrives
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+    except Exception as e:
+        yield f"Error in Gemini API: {str(e)}"
+
+
 def build_prompt(**kwargs):
     """Build a prompt with context."""
     persona = kwargs.get("persona", "helpful assistant")

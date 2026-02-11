@@ -13,16 +13,25 @@ from backend.firebase_service import (
 from backend.auth_service import (
     init_google_oauth, get_authorization_url, exchange_code_for_token, verify_google_token
 )
-from backend.gemini_service import get_gemini_client, get_response
+from backend.gemini_service import get_gemini_client, get_response, get_response_streaming
+from backend.session_store import create_session, get_session, delete_session
 from frontend.ui_components import render_auth_button, render_sidebar, render_chat_interface, PERSONAS
 from frontend.flashcard_components import render_flashcard_interface
+from frontend.analytics_components import render_analytics_page
 
 # Configure page
 st.set_page_config(
-    page_title="Buddy AI", 
+    page_title="BUDDY AI", 
     page_icon="asset/icon.png",
     initial_sidebar_state="expanded"
 )
+
+# Load global CSS FIRST — before anything else renders
+# This ensures top padding applies to ALL pages (chat, analytics, flashcards)
+from frontend.ui_components import load_css as _load_css
+_global_css = _load_css("frontend/styles.css")
+if _global_css:
+    st.markdown(_global_css, unsafe_allow_html=True)
 
 init_google_oauth()
 client = get_gemini_client()
@@ -51,9 +60,6 @@ def generate_chat_title(first_message: str, max_length: int = 20) -> str:
         title = title[:max_length].rsplit(' ', 1)[0] + "..."
     
     return title if title else "New Chat"
-
-# Import session store from backend (avoids circular imports)
-from backend.session_store import get_session_store
 
 # Initialize session state
 if "chat_sessions" not in st.session_state:
@@ -86,38 +92,121 @@ if "stop_processing" not in st.session_state:
 if "should_cancel" not in st.session_state:
     st.session_state.should_cancel = False
 
-if "editing" not in st.session_state:
-    st.session_state.editing = False
-
-if "edit_message_index" not in st.session_state:
-    st.session_state.edit_message_index = None
-
-if "process_message" not in st.session_state:
-    st.session_state.process_message = None
+if "partial_response" not in st.session_state:
+    st.session_state.partial_response = None
 
 if "pending_user_input" not in st.session_state:
     st.session_state.pending_user_input = None
 
+if "queued_files" not in st.session_state:
+    st.session_state.queued_files = []
+
+if "show_upload_modal" not in st.session_state:
+    st.session_state.show_upload_modal = False
+
+if "upload_for_message_idx" not in st.session_state:
+    st.session_state.upload_for_message_idx = None
+
 if "flashcard_mode" not in st.session_state:
     st.session_state.flashcard_mode = False
+
+if "sidebar_tab" not in st.session_state:
+    st.session_state.sidebar_tab = "home"
+
+if "editing_msg_idx" not in st.session_state:
+    st.session_state.editing_msg_idx = None
+
+# --- Handle sign-out flag (set by sign-out button, processed on this rerun) ---
+if st.session_state.get('_signing_out'):
+    # Delete server-side session
+    token = st.query_params.get('session')
+    if token:
+        delete_session(token)
+    # Reset user-related session state
+    st.session_state.user = None
+    st.session_state.messages = []
+    st.session_state.chat_sessions = {}
+    st.session_state.current_session_id = None
+    st.session_state.selected_persona = "Default"
+    st.session_state.flashcard_mode = False
+    st.session_state._signing_out = False
+    # Clear query params (removes session token from URL)
+    st.query_params.clear()
+    st.rerun()
 
 # Get user from session state after initialization
 user = st.session_state.user
 
-# Restore session from server-side store on page refresh
-if not st.session_state.user and "session" in st.query_params:
-    session_token = st.query_params["session"]
-    session_data = get_session_store().get(session_token)
-    if session_data:
-        st.session_state.user = session_data["user"]
-        st.session_state.chat_sessions = session_data.get("chats", {})
-        st.session_state.selected_persona = session_data.get("selected_persona", "Default")
-        st.session_state.custom_personas = session_data.get("custom_personas", {})
+# Restore session from server-side token on page refresh
+if not user:
+    token = st.query_params.get('session')
+    if token:
+        stored_user = get_session(token)
+        if stored_user:
+            st.session_state.user = stored_user
+            user = stored_user
+            # Load chats from Firestore for the restored user
+            chats = load_user_chats(stored_user['user_id'])
+            st.session_state.chat_sessions = chats
 
 # Check for OAuth callback
 query_params = st.query_params
 if 'code' in query_params and not user:
-    """Handle OAuth callback"""
+    # Show a welcome animation while OAuth processes
+    import base64, pathlib
+    _icon_bytes = pathlib.Path("asset/icon.png").read_bytes()
+    _icon_b64 = base64.b64encode(_icon_bytes).decode()
+    st.markdown(f"""
+    <style>
+        @keyframes buddyPulse {{
+            0%, 100% {{ transform: scale(1); opacity: 0.85; }}
+            50% {{ transform: scale(1.08); opacity: 1; }}
+        }}
+        @keyframes fadeInUp {{
+            from {{ opacity: 0; transform: translateY(24px); }}
+            to   {{ opacity: 1; transform: translateY(0); }}
+        }}
+        @keyframes dotBounce {{
+            0%, 80%, 100% {{ transform: translateY(0); }}
+            40% {{ transform: translateY(-8px); }}
+        }}
+        .welcome-wrap {{
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; min-height: 70vh; gap: 18px;
+            animation: fadeInUp 0.6s ease-out;
+        }}
+        .welcome-icon {{
+            width: 80px; height: 80px;
+            animation: buddyPulse 1.8s ease-in-out infinite;
+        }}
+        .welcome-icon img {{
+            width: 100%; height: 100%; object-fit: contain;
+            border-radius: 16px;
+        }}
+        .welcome-title {{
+            font-size: 28px; font-weight: 700; color: #e5e7eb;
+            letter-spacing: -0.5px;
+        }}
+        .welcome-dots {{ display: flex; gap: 6px; margin-top: 4px; }}
+        .welcome-dots span {{
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #818cf8; display: inline-block;
+            animation: dotBounce 1.2s ease-in-out infinite;
+        }}
+        .welcome-dots span:nth-child(2) {{ animation-delay: 0.15s; }}
+        .welcome-dots span:nth-child(3) {{ animation-delay: 0.3s; }}
+        .welcome-sub {{
+            font-size: 15px; color: #9ca3af; margin-top: -4px;
+        }}
+    </style>
+    <div class="welcome-wrap">
+        <div class="welcome-icon"><img src="data:image/png;base64,{_icon_b64}" alt="Buddy AI" /></div>
+        <div class="welcome-title">Welcome to BUDDY AI</div>
+        <div class="welcome-dots"><span></span><span></span><span></span></div>
+        <div class="welcome-sub">Signing you in…</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     code = query_params['code']
     token_response = exchange_code_for_token(code)
     
@@ -142,16 +231,10 @@ if 'code' in query_params and not user:
             chats = load_user_chats(user['user_id'])
             st.session_state.chat_sessions = chats
             
-            # Store session server-side for refresh persistence
-            session_token = str(uuid.uuid4())
-            get_session_store()[session_token] = {
-                "user": user,
-                "chats": chats
-            }
-            
-            # Clear auth code, keep session token in URL
+            # Create server-side session and put token in URL
+            session_token = create_session(user)
             st.query_params.clear()
-            st.query_params["session"] = session_token
+            st.query_params['session'] = session_token
             st.rerun()
         else:
             st.error("Failed to verify token")
@@ -160,42 +243,39 @@ if 'code' in query_params and not user:
 # Always render sidebar on the left
 render_sidebar(user)
 
-if st.session_state.get('flashcard_mode', False):
+if st.session_state.get('sidebar_tab') == 'analytics':
+    render_analytics_page()
+elif st.session_state.get('flashcard_mode', False):
     render_flashcard_interface()
 else:
 
     # Main content area
-    col1, col2 = st.columns([1, 12])
-    with col1:
-        st.image("asset/icon.png", width=50)
-    with col2:
-        st.markdown("# Buddy AI")
+    st.markdown('# B<span style="color: #818cf8;">U</span>DDY AI', unsafe_allow_html=True)
     st.markdown("Powered by Google Gemini")
 
     # If not logged in, show auth button for signup opportunity
     if not user:
         st.info("👤 Sign in to save your chat history across sessions")
 
-    # First, check if there's a message to process from editing OR from new user input
-    message_to_process = st.session_state.get('process_message') or st.session_state.get('pending_user_input')
-    st.session_state.process_message = None
-    if message_to_process == st.session_state.get('pending_user_input'):
+    # Check if there's a message to process from user input
+    message_to_process = st.session_state.get('pending_user_input')
+    if message_to_process:
         st.session_state.pending_user_input = None
 
-    # Handle user input
+    # STEP 1: Prepare user message in state BEFORE rendering chat history
     if message_to_process:
-        # 1. SETUP SESSION ID
+        # Setup session ID
         if st.session_state.current_session_id is None:
             new_id = str(uuid.uuid4())[:8]
             st.session_state.current_session_id = new_id
             st.session_state.chat_sessions[new_id] = {
                 "title": generate_chat_title(message_to_process),
                 "messages": [],
-                "timestamp": datetime.datetime.now().isoformat()
+                "timestamp": datetime.datetime.now().isoformat(),
+                "persona": st.session_state.get('selected_persona', 'Default')
             }
         
-        # 2. ADD USER MESSAGE (FIXED: Only add if it's not already the last message)
-        # This prevents the double-bubble issue during edits
+        # Add user message (only if not already the last message)
         if not st.session_state.messages or st.session_state.messages[-1].get("content") != message_to_process:
             st.session_state.messages.append({"role": "user", "content": message_to_process})
             st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
@@ -203,8 +283,28 @@ else:
         # Save user part to Firestore
         if user:
             save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
-        
-        # 3. RATE LIMIT CHECK
+
+    # STEP 1.5: Recover partial response if generation was stopped mid-stream
+    if st.session_state.get('partial_response') and not message_to_process:
+        partial = st.session_state.partial_response
+        st.session_state.partial_response = None
+        if partial.strip():
+            st.session_state.messages.append({"role": "assistant", "content": partial})
+            if st.session_state.current_session_id:
+                st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+                if user:
+                    save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
+        st.session_state.stop_processing = False
+        st.session_state.is_processing = False
+
+    # STEP 2: Render chat history (includes newly added user message)
+    user_input = render_chat_interface()
+    if user_input:
+        st.session_state.pending_user_input = user_input
+        st.rerun()
+
+    # STEP 3: Stream the AI response AFTER chat history is displayed
+    if message_to_process:
         now = datetime.datetime.now()
         if st.session_state.last_request_time and (now - st.session_state.last_request_time) < MIN_TIME_BETWEEN_REQUESTS:
             st.warning("⏳ Please wait a moment...")
@@ -212,80 +312,95 @@ else:
             with st.chat_message("assistant"):
                 status_container = st.empty()
                 response_container = st.empty()
-                stop_btn_container = st.empty()
-                
-                try:
-                    st.session_state.is_processing = True
-                    st.session_state.stop_processing = False
 
-                    if stop_btn_container.button("⏹️ Stop Buddy", key="stop_gen_btn", use_container_width=True):
+            # Stop button outside chat message — fixed at bottom center via CSS
+            stop_btn_container = st.empty()
+
+            try:
+                st.session_state.is_processing = True
+                st.session_state.stop_processing = False
+                st.session_state.partial_response = None
+
+                gemini_files = []
+                # Handle uploaded files AND queued files from follow-ups
+                all_files_to_process = (st.session_state.get('uploaded_files') or []) + (st.session_state.get('queued_files') or [])
+
+                if all_files_to_process:
+                    for uploaded_file in all_files_to_process:
+                        if st.session_state.stop_processing: break
+
+                        with status_container.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
+                            import google.generativeai as genai
+                            myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
+                            while myfile.state.name == "PROCESSING":
+                                if st.session_state.stop_processing: break
+                                time.sleep(1)
+                                myfile = genai.get_file(myfile.name)
+                            status.update(label=f"✅ {uploaded_file.name} ready!", state="complete")
+                            gemini_files.append(myfile)
+
+                # GET STREAMING RESPONSE (Only if not stopped)
+                if not st.session_state.stop_processing:
+                    all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
+                    instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
+
+                    # Show "Buddy is thinking..." while waiting for first chunk
+                    status_container.markdown("💭 **Buddy is thinking...**")
+
+                    # Stop button with on_click callback so partial response survives rerun
+                    def _stop_generation():
                         st.session_state.stop_processing = True
                         st.session_state.is_processing = False
-                        st.rerun()
-                    
-                    gemini_files = []
-                    if st.session_state.get('uploaded_files'):
-                        for uploaded_file in st.session_state.uploaded_files:
-                            if st.session_state.stop_processing: break
-                            
-                            with status_container.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
-                                import google.generativeai as genai
-                                myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
-                                while myfile.state.name == "PROCESSING":
-                                    if st.session_state.stop_processing: break
-                                    time.sleep(1)
-                                    myfile = genai.get_file(myfile.name)
-                                status.update(label=f"✅ {uploaded_file.name} ready!", state="complete")
-                                gemini_files.append(myfile)
-                    
-                    # 4. GET RESPONSE (Only if not stopped)
-                    if not st.session_state.stop_processing:
-                        with response_container:
-                            with st.spinner("Buddy is thinking..."):
-                                all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
-                                instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
-                            
-                                # Generate the response
-                                response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
 
-                                stop_btn_container.empty()
-                                with response_container.container():
-                                    res_col1, res_col2 = st.columns([20, 1.2])
-                                    with res_col1:
-                                        st.markdown(response_text)
-                                    with res_col2:
-                                        st.markdown('<div class="copy-btn-container">', unsafe_allow_html=True)
-                                        if st.button("📋", key="copy_current", help="Copy"):
-                                            st.session_state.copied_text = response_text
-                                            st.toast("Copied!")
-                                        st.markdown('</div>', unsafe_allow_html=True)
-                    
-                        # Display response
-                        st.markdown(response_text)
-                        
-                        # Add AI response to memory
-                        st.session_state.messages.append({"role": "assistant", "content": response_text})
+                    stop_btn_container.button(
+                        "⏹ Stop generating",
+                        key="stop_gen_btn",
+                        on_click=_stop_generation,
+                    )
+
+                    # Build chat history for follow-up context
+                    history_for_gemini = st.session_state.messages[:-1]  # exclude current user msg
+
+                    # Stream the response in real-time
+                    full_response = ""
+                    first_chunk = True
+                    for chunk in get_response_streaming(message_to_process, client, gemini_files, system_instruction=instruction, chat_history=history_for_gemini):
+                        if st.session_state.stop_processing:
+                            break
+                        if first_chunk:
+                            status_container.empty()
+                            first_chunk = False
+                        full_response += chunk
+                        st.session_state.partial_response = full_response
+                        response_container.markdown(full_response)
+
+                    # Clear stop button after generation completes
+                    stop_btn_container.empty()
+
+                    # Save the response (full or partial)
+                    if full_response:
+                        st.session_state.partial_response = None
+                        st.session_state.messages.append({"role": "assistant", "content": full_response})
                         st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+
+                        st.session_state.queued_files = []
+                        st.session_state.uploaded_files = None
 
                         if user:
                             save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
-                        
-                        st.session_state.last_request_time = datetime.datetime.now()
-                        st.session_state.is_processing = False
-                        stop_btn_container.empty()
-                        st.rerun() # Refresh to keep bar at bottom
-                    else:
-                        status_container.empty()
-                        response_container.empty()
-                        stop_btn_container.empty()
-                        st.warning("✋ Buddy stopped at your request.")
-                        st.session_state.is_processing = False
 
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    st.session_state.last_request_time = datetime.datetime.now()
                     st.session_state.is_processing = False
-                    if 'stop_btn_container' in locals():
-                        stop_btn_container.empty()
+                    st.rerun()
+                else:
+                    status_container.empty()
+                    response_container.empty()
+                    stop_btn_container.empty()
+                    st.session_state.is_processing = False
 
-    # Always render input interface at the bottom
-    render_chat_interface()
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                st.session_state.is_processing = False
+                st.session_state.partial_response = None
+                if 'stop_btn_container' in locals():
+                    stop_btn_container.empty()
