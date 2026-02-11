@@ -101,3 +101,10 @@ div[data-testid="stPopover"] > button {
 div[data-testid="stPopover"] [data-testid="stIconInline"] {
     display: none !important;
 }
+.flashcard-front {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.flashcard-back {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}

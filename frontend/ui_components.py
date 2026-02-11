@@ -117,6 +117,11 @@ def render_sidebar(user):
         st.session_state.current_session_id = None
         st.session_state.messages = []
         st.rerun()
+    # Flashcard button
+    if st.sidebar.button("📚 Flashcards", use_container_width=True):
+        st.session_state.flashcard_mode = True
+        st.session_state.current_session_id = None
+        st.rerun()
     
     if user:
         st.sidebar.markdown("---")
@@ -223,6 +228,8 @@ def render_sidebar(user):
                     ):
                         st.session_state.current_session_id = session_id
                         st.session_state.messages = session_data["messages"].copy()
+                        if 'flashcard_mode' in st.session_state:
+                            st.session_state.flashcard_mode = False
                         st.rerun()
                 with col2:
                     if st.button("×", key=f"delete_{session_id}", help="Delete"):
