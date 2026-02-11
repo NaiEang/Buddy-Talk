@@ -323,6 +323,34 @@ def render_chat_interface():
     css_content = load_css("frontend/styles.css")
     if css_content:
         st.markdown(css_content, unsafe_allow_html=True)
+    
+    # Add custom CSS to make edit buttons invisible/transparent
+    # st.markdown("""
+    # <style>
+    #     /* Remove borders from edit buttons */
+    #     button[kind="secondary"] {
+    #         border: none !important;
+    #         background: transparent !important;
+    #         box-shadow: none !important;
+    #         padding: 0px !important;
+    #         height: auto !important;
+    #     }
+    #     button[kind="secondary"]:hover {
+    #         background: rgba(0, 0, 0, 0.05) !important;
+    #         border: none !important;
+    #         box-shadow: none !important;
+    #     }
+        
+    #     /* Target edit buttons by aria-label */
+    #     button[aria-label*="Edit"] {
+    #         border: none !important;
+    #         background: transparent !important;
+    #         box-shadow: none !important;
+    #         padding: 0px !important;
+    #         height: auto !important;
+    #     }
+    # </style>
+    # """, unsafe_allow_html=True)
 
     # 1. INITIALIZE STATE FIRST (Always do this before rendering)
     if "messages" not in st.session_state:
@@ -351,9 +379,50 @@ def render_chat_interface():
         st.markdown("---") # Visual divider
 
     # 4. DISPLAY CHAT HISTORY (The messages go here)
-    for message in st.session_state.messages:
+    for idx, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            col1, col2 = st.columns([20, 1])
+            with col1:
+                st.markdown(message["content"])
+            with col2:
+                if message["role"] == "user":
+                    if st.button("✏️", key=f"edit_msg_{idx}", help="Edit this question"):
+                        st.session_state.edit_message_index = idx
+                        st.session_state.editing = True
+                        st.rerun()
+    
+    # Edit message modal
+    if st.session_state.get('editing') and st.session_state.get('edit_message_index') is not None:
+        idx = st.session_state.edit_message_index
+        original_message = st.session_state.messages[idx]["content"]
+        
+        st.divider()
+        st.markdown("### Edit your question:")
+        edited_text = st.text_area(
+            "Edit",
+            value=original_message,
+            height=100,
+            label_visibility="collapsed",
+            key="edit_textarea"
+        )
+        
+        col_send, col_cancel = st.columns(2)
+        with col_send:
+            if st.button("✅ Update & Ask Again", use_container_width=True, key="confirm_edit"):
+                # Update the user message
+                st.session_state.messages[idx]["content"] = edited_text
+                # Remove all messages after this (assistant response)
+                st.session_state.messages = st.session_state.messages[:idx+1]
+                # Set flag to process this edited message
+                st.session_state.process_message = edited_text
+                st.session_state.editing = False
+                st.session_state.edit_message_index = None
+                st.rerun()
+        with col_cancel:
+            if st.button("❌ Cancel", use_container_width=True, key="cancel_edit_msg"):
+                st.session_state.editing = False
+                st.session_state.edit_message_index = None
+                st.rerun()
 
     # 5. FIXED PERMANENT BOTTOM SECTION (The bar at the bottom)
     with st.container():
@@ -361,7 +430,11 @@ def render_chat_interface():
         col_icon, col_bar = st.columns([1.5, 15], vertical_alignment="center")
 
         with col_icon:
-            with st.popover("📎", help="Attach or update files"):
+            if st.button("📎", key="attach_files", help="Attach or update files"):
+                st.session_state.show_file_uploader = not st.session_state.get('show_file_uploader', False)
+                st.rerun()
+            
+            if st.session_state.get('show_file_uploader', False):
                 st.markdown("#### Knowledge Base")
                 more_files = st.file_uploader(
                     "Add files...",
@@ -378,4 +451,9 @@ def render_chat_interface():
             prompt_text = "Ask Buddy something..." if not st.session_state.messages else "Ask a follow-up..."
             user_input = st.chat_input(prompt_text)
             
-    return user_input
+            # Store the input in session state so it persists and can be accessed in main script
+            if user_input:
+                st.session_state.pending_user_input = user_input
+                st.rerun()  # Trigger rerun to process the message
+            
+    return None
