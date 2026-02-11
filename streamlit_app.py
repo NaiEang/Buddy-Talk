@@ -76,6 +76,27 @@ if "messages" not in st.session_state:
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = None
 
+if "is_processing" not in st.session_state:
+    st.session_state.is_processing = False
+
+if "stop_processing" not in st.session_state:
+    st.session_state.stop_processing = False
+
+if "should_cancel" not in st.session_state:
+    st.session_state.should_cancel = False
+
+if "editing" not in st.session_state:
+    st.session_state.editing = False
+
+if "edit_message_index" not in st.session_state:
+    st.session_state.edit_message_index = None
+
+if "process_message" not in st.session_state:
+    st.session_state.process_message = None
+
+if "pending_user_input" not in st.session_state:
+    st.session_state.pending_user_input = None
+
 # Get user from session state after initialization
 user = st.session_state.user
 
@@ -89,13 +110,8 @@ if not st.session_state.user and "session" in st.query_params:
         st.session_state.selected_persona = session_data.get("selected_persona", "Default")
         st.session_state.custom_personas = session_data.get("custom_personas", {})
 
-# Get Gemini client
-
-
 # Check for OAuth callback
 query_params = st.query_params
-
-
 if 'code' in query_params and not user:
     """Handle OAuth callback"""
     code = query_params['code']
@@ -152,106 +168,100 @@ st.markdown("Powered by Google Gemini")
 if not user:
     st.info("👤 Sign in to save your chat history across sessions")
 
-# Render chat interface (works with or without login)
-user_input = render_chat_interface()
+# First, check if there's a message to process from editing OR from new user input
+message_to_process = st.session_state.get('process_message') or st.session_state.get('pending_user_input')
+st.session_state.process_message = None
+if message_to_process == st.session_state.get('pending_user_input'):
+    st.session_state.pending_user_input = None
 
 # Handle user input
-if user_input:
-    # Create a new session if none exists
+if message_to_process:
+    # 1. SETUP SESSION ID
     if st.session_state.current_session_id is None:
         new_id = str(uuid.uuid4())[:8]
-        # Generate title from first message
-        chat_title = generate_chat_title(user_input)
+        st.session_state.current_session_id = new_id
         st.session_state.chat_sessions[new_id] = {
-            "title": chat_title,
+            "title": generate_chat_title(message_to_process),
             "messages": [],
             "timestamp": datetime.datetime.now().isoformat()
         }
-        st.session_state.current_session_id = new_id
     
-    # Add user message to current session
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+    # 2. ADD USER MESSAGE (FIXED: Only add if it's not already the last message)
+    # This prevents the double-bubble issue during edits
+    if not st.session_state.messages or st.session_state.messages[-1].get("content") != message_to_process:
+        st.session_state.messages.append({"role": "user", "content": message_to_process})
+        st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
     
-    # Save to Firestore only if logged in
+    # Save user part to Firestore
     if user:
-        save_chat_to_firestore(
-            user['user_id'],
-            st.session_state.current_session_id,
-            st.session_state.messages,
-            st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
-        )
+        save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
     
-    # Display the user's message immediately
-    with st.chat_message("user"):
-        st.write(user_input)
-    
-    # Check rate limiting
+    # 3. RATE LIMIT CHECK
     now = datetime.datetime.now()
     if st.session_state.last_request_time and (now - st.session_state.last_request_time) < MIN_TIME_BETWEEN_REQUESTS:
-        st.warning("⏳ Please wait a moment before asking another question...")
+        st.warning("⏳ Please wait a moment...")
     else:
         with st.chat_message("assistant"):
+            stop_btn_container = st.empty()
+            thinking_placeholder = st.empty()
+            status_container = st.empty()
             try:
+                st.session_state.is_processing = True
+                st.session_state.stop_processing = False
+
+                if stop_btn_container.button("⏹️ Stop Buddy", key="stop_gen_btn", use_container_width=True):
+                    st.session_state.stop_processing = True
+                    st.session_state.is_processing = False
+                    st.rerun()
+                
                 gemini_files = []
                 if st.session_state.get('uploaded_files'):
                     for uploaded_file in st.session_state.uploaded_files:
-                        with st.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
-                        # 1. Upload to Gemini File API
+                        if st.session_state.stop_processing: break
+                        
+                        with status_container.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
                             import google.generativeai as genai
-                        myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
+                            myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
+                            while myfile.state.name == "PROCESSING":
+                                if st.session_state.stop_processing: break
+                                time.sleep(1)
+                                myfile = genai.get_file(myfile.name)
+                            status.update(label=f"✅ {uploaded_file.name} ready!", state="complete")
+                            gemini_files.append(myfile)
                 
-                        # 2. WAIT/POLL logic: Check if the file is ready
-                        while myfile.state.name == "PROCESSING":
-                            time.sleep(2) # Wait for 2 seconds
-                            myfile = genai.get_file(myfile.name) # Refresh file info from Google
+                # 4. GET RESPONSE (Only if not stopped)
+                if not st.session_state.stop_processing:
+                    with st.spinner("Buddy is thinking..."):
+                        all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
+                        instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
+                        
+                        # Generate the response
+                        response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
                 
-                        if myfile.state.name == "FAILED":
-                            raise Exception(f"File {uploaded_file.name} failed to process.")
-                
-                        status.update(label=f"✅ {uploaded_file.name} is ready!", state="complete")
-                        gemini_files.append(myfile)
-                
-                # Get selected persona instruction
-                all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
-                persona_instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
-                
-                with st.spinner("Buddy is thinking..."):
-                    response_text = get_response(user_input, client, gemini_files, system_instruction=persona_instruction)
+                    # Display response
                     st.markdown(response_text)
+                    
+                    # Add AI response to memory
+                    st.session_state.messages.append({"role": "assistant", "content": response_text})
+                    st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
 
-                #save reponse to state
-                st.session_state.messages.append({"role": "assistant", "content": response_text})
-                st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+                    if user:
+                        save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
+                    
+                    st.session_state.last_request_time = datetime.datetime.now()
+                    st.session_state.is_processing = False
+                    stop_btn_container.empty()
+                    st.rerun() # Refresh to keep bar at bottom
+                else:
+                    st.warning("✋ Buddy stopped at your request.")
+                    st.session_state.is_processing = False
+                    stop_btn_container.empty()
 
-                if user:
-                    save_chat_to_firestore(
-                        user['user_id'],
-                        st.session_state.current_session_id,
-                        st.session_state.messages,
-                        st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
-                    )
-                
-                st.session_state.last_request_time = now
-                
-                # Sync session store for refresh persistence
-                if "session" in st.query_params:
-                    store = get_session_store()
-                    token = st.query_params["session"]
-                    if token in store:
-                        store[token]["chats"] = st.session_state.chat_sessions
-
-                st.rerun()
-                
             except Exception as e:
-                error_msg = f"❌ Error generating response: {str(e)}"
-                st.error(error_msg)
-                st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
-                if user:
-                    save_chat_to_firestore(
-                        user['user_id'],
-                        st.session_state.current_session_id,
-                        st.session_state.messages,
-                        st.session_state.chat_sessions[st.session_state.current_session_id]["title"]
-                    )
+                st.error(f"❌ Error: {str(e)}")
+                st.session_state.is_processing = False
+                if 'stop_btn_container' in locals():
+                    stop_btn_container.empty()
+
+# Always render input interface at the bottom
+render_chat_interface()

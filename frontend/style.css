@@ -32,3 +32,37 @@ div[data-testid="stPopover"] p {
     font-size: 20px !important;
     margin: 0 !important;
 }
+
+.edit-btn-container button {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0px !important;
+    height: 40px !important;
+    width: 40px !important;
+    margin: 0 !important;
+}
+
+.edit-btn-container button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 50% !important;
+}
+
+div.stButton > button[key="stop_btn"] {
+    background-color: rgba(239, 68, 68, 0.1) !important; /* Soft red background */
+    color: #ef4444 !important; /* Bright red text */
+    border: 1px solid #ef4444 !important;
+    border-radius: 20px !important; /* Rounded look */
+    margin-top: 10px;
+}
+
+div.stButton > button[key="stop_btn"]:hover {
+    background-color: #ef4444 !important;
+    color: white !important;
+}
+/* Centers the stop button container to look like a small red label at the bottom */
+div[data-testid="stVerticalBlock"] > div[style*="stop_gen_btn"] {
+    display: flex;
+    justify-content: center;
+    padding-top: 10px;
+}
