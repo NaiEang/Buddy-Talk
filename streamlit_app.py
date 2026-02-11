@@ -15,6 +15,7 @@ from backend.auth_service import (
 )
 from backend.gemini_service import get_gemini_client, get_response
 from frontend.ui_components import render_auth_button, render_sidebar, render_chat_interface, PERSONAS
+from frontend.flashcard_components import render_flashcard_interface
 
 # Configure page
 st.set_page_config(
@@ -97,6 +98,9 @@ if "process_message" not in st.session_state:
 if "pending_user_input" not in st.session_state:
     st.session_state.pending_user_input = None
 
+if "flashcard_mode" not in st.session_state:
+    st.session_state.flashcard_mode = False
+
 # Get user from session state after initialization
 user = st.session_state.user
 
@@ -156,128 +160,132 @@ if 'code' in query_params and not user:
 # Always render sidebar on the left
 render_sidebar(user)
 
-# Main content area
-col1, col2 = st.columns([1, 12])
-with col1:
-    st.image("asset/icon.png", width=50)
-with col2:
-    st.markdown("# Buddy AI")
-st.markdown("Powered by Google Gemini")
+if st.session_state.get('flashcard_mode', False):
+    render_flashcard_interface()
+else:
 
-# If not logged in, show auth button for signup opportunity
-if not user:
-    st.info("👤 Sign in to save your chat history across sessions")
+    # Main content area
+    col1, col2 = st.columns([1, 12])
+    with col1:
+        st.image("asset/icon.png", width=50)
+    with col2:
+        st.markdown("# Buddy AI")
+    st.markdown("Powered by Google Gemini")
 
-# First, check if there's a message to process from editing OR from new user input
-message_to_process = st.session_state.get('process_message') or st.session_state.get('pending_user_input')
-st.session_state.process_message = None
-if message_to_process == st.session_state.get('pending_user_input'):
-    st.session_state.pending_user_input = None
+    # If not logged in, show auth button for signup opportunity
+    if not user:
+        st.info("👤 Sign in to save your chat history across sessions")
 
-# Handle user input
-if message_to_process:
-    # 1. SETUP SESSION ID
-    if st.session_state.current_session_id is None:
-        new_id = str(uuid.uuid4())[:8]
-        st.session_state.current_session_id = new_id
-        st.session_state.chat_sessions[new_id] = {
-            "title": generate_chat_title(message_to_process),
-            "messages": [],
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-    
-    # 2. ADD USER MESSAGE (FIXED: Only add if it's not already the last message)
-    # This prevents the double-bubble issue during edits
-    if not st.session_state.messages or st.session_state.messages[-1].get("content") != message_to_process:
-        st.session_state.messages.append({"role": "user", "content": message_to_process})
-        st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
-    
-    # Save user part to Firestore
-    if user:
-        save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
-    
-    # 3. RATE LIMIT CHECK
-    now = datetime.datetime.now()
-    if st.session_state.last_request_time and (now - st.session_state.last_request_time) < MIN_TIME_BETWEEN_REQUESTS:
-        st.warning("⏳ Please wait a moment...")
-    else:
-        with st.chat_message("assistant"):
-            status_container = st.empty()
-            response_container = st.empty()
-            stop_btn_container = st.empty()
-            
-            try:
-                st.session_state.is_processing = True
-                st.session_state.stop_processing = False
+    # First, check if there's a message to process from editing OR from new user input
+    message_to_process = st.session_state.get('process_message') or st.session_state.get('pending_user_input')
+    st.session_state.process_message = None
+    if message_to_process == st.session_state.get('pending_user_input'):
+        st.session_state.pending_user_input = None
 
-                if stop_btn_container.button("⏹️ Stop Buddy", key="stop_gen_btn", use_container_width=True):
-                    st.session_state.stop_processing = True
-                    st.session_state.is_processing = False
-                    st.rerun()
+    # Handle user input
+    if message_to_process:
+        # 1. SETUP SESSION ID
+        if st.session_state.current_session_id is None:
+            new_id = str(uuid.uuid4())[:8]
+            st.session_state.current_session_id = new_id
+            st.session_state.chat_sessions[new_id] = {
+                "title": generate_chat_title(message_to_process),
+                "messages": [],
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        
+        # 2. ADD USER MESSAGE (FIXED: Only add if it's not already the last message)
+        # This prevents the double-bubble issue during edits
+        if not st.session_state.messages or st.session_state.messages[-1].get("content") != message_to_process:
+            st.session_state.messages.append({"role": "user", "content": message_to_process})
+            st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
+        
+        # Save user part to Firestore
+        if user:
+            save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
+        
+        # 3. RATE LIMIT CHECK
+        now = datetime.datetime.now()
+        if st.session_state.last_request_time and (now - st.session_state.last_request_time) < MIN_TIME_BETWEEN_REQUESTS:
+            st.warning("⏳ Please wait a moment...")
+        else:
+            with st.chat_message("assistant"):
+                status_container = st.empty()
+                response_container = st.empty()
+                stop_btn_container = st.empty()
                 
-                gemini_files = []
-                if st.session_state.get('uploaded_files'):
-                    for uploaded_file in st.session_state.uploaded_files:
-                        if st.session_state.stop_processing: break
-                        
-                        with status_container.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
-                            import google.generativeai as genai
-                            myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
-                            while myfile.state.name == "PROCESSING":
-                                if st.session_state.stop_processing: break
-                                time.sleep(1)
-                                myfile = genai.get_file(myfile.name)
-                            status.update(label=f"✅ {uploaded_file.name} ready!", state="complete")
-                            gemini_files.append(myfile)
-                
-                # 4. GET RESPONSE (Only if not stopped)
-                if not st.session_state.stop_processing:
-                    with response_container:
-                        with st.spinner("Buddy is thinking..."):
-                            all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
-                            instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
-                        
-                            # Generate the response
-                            response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
+                try:
+                    st.session_state.is_processing = True
+                    st.session_state.stop_processing = False
 
-                            stop_btn_container.empty()
-                            with response_container.container():
-                                res_col1, res_col2 = st.columns([20, 1.2])
-                                with res_col1:
-                                    st.markdown(response_text)
-                                with res_col2:
-                                    st.markdown('<div class="copy-btn-container">', unsafe_allow_html=True)
-                                    if st.button("📋", key="copy_current", help="Copy"):
-                                        st.session_state.copied_text = response_text
-                                        st.toast("Copied!")
-                                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                    # Display response
-                    st.markdown(response_text)
+                    if stop_btn_container.button("⏹️ Stop Buddy", key="stop_gen_btn", use_container_width=True):
+                        st.session_state.stop_processing = True
+                        st.session_state.is_processing = False
+                        st.rerun()
                     
-                    # Add AI response to memory
-                    st.session_state.messages.append({"role": "assistant", "content": response_text})
-                    st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
-
-                    if user:
-                        save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
+                    gemini_files = []
+                    if st.session_state.get('uploaded_files'):
+                        for uploaded_file in st.session_state.uploaded_files:
+                            if st.session_state.stop_processing: break
+                            
+                            with status_container.status(f"Processing {uploaded_file.name}...", expanded=True) as status:
+                                import google.generativeai as genai
+                                myfile = genai.upload_file(uploaded_file, mime_type=uploaded_file.type)
+                                while myfile.state.name == "PROCESSING":
+                                    if st.session_state.stop_processing: break
+                                    time.sleep(1)
+                                    myfile = genai.get_file(myfile.name)
+                                status.update(label=f"✅ {uploaded_file.name} ready!", state="complete")
+                                gemini_files.append(myfile)
                     
-                    st.session_state.last_request_time = datetime.datetime.now()
-                    st.session_state.is_processing = False
-                    stop_btn_container.empty()
-                    st.rerun() # Refresh to keep bar at bottom
-                else:
-                    status_container.empty()
-                    response_container.empty()
-                    stop_btn_container.empty()
-                    st.warning("✋ Buddy stopped at your request.")
-                    st.session_state.is_processing = False
+                    # 4. GET RESPONSE (Only if not stopped)
+                    if not st.session_state.stop_processing:
+                        with response_container:
+                            with st.spinner("Buddy is thinking..."):
+                                all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
+                                instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
+                            
+                                # Generate the response
+                                response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
 
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
-                st.session_state.is_processing = False
-                if 'stop_btn_container' in locals():
-                    stop_btn_container.empty()
+                                stop_btn_container.empty()
+                                with response_container.container():
+                                    res_col1, res_col2 = st.columns([20, 1.2])
+                                    with res_col1:
+                                        st.markdown(response_text)
+                                    with res_col2:
+                                        st.markdown('<div class="copy-btn-container">', unsafe_allow_html=True)
+                                        if st.button("📋", key="copy_current", help="Copy"):
+                                            st.session_state.copied_text = response_text
+                                            st.toast("Copied!")
+                                        st.markdown('</div>', unsafe_allow_html=True)
+                    
+                        # Display response
+                        st.markdown(response_text)
+                        
+                        # Add AI response to memory
+                        st.session_state.messages.append({"role": "assistant", "content": response_text})
+                        st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages.copy()
 
-# Always render input interface at the bottom
-render_chat_interface()
+                        if user:
+                            save_chat_to_firestore(user['user_id'], st.session_state.current_session_id, st.session_state.messages, st.session_state.chat_sessions[st.session_state.current_session_id]["title"])
+                        
+                        st.session_state.last_request_time = datetime.datetime.now()
+                        st.session_state.is_processing = False
+                        stop_btn_container.empty()
+                        st.rerun() # Refresh to keep bar at bottom
+                    else:
+                        status_container.empty()
+                        response_container.empty()
+                        stop_btn_container.empty()
+                        st.warning("✋ Buddy stopped at your request.")
+                        st.session_state.is_processing = False
+
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    st.session_state.is_processing = False
+                    if 'stop_btn_container' in locals():
+                        stop_btn_container.empty()
+
+    # Always render input interface at the bottom
+    render_chat_interface()
