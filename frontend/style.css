@@ -61,8 +61,43 @@ div.stButton > button[key="stop_btn"]:hover {
     color: white !important;
 }
 /* Centers the stop button container to look like a small red label at the bottom */
-div[data-testid="stVerticalBlock"] > div[style*="stop_gen_btn"] {
+.st-key-stop-gen-btn{
     display: flex;
     justify-content: center;
     padding-top: 10px;
+}
+.st-key-copy-btn-container button {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0px !important;
+    height: 35px !important;
+    width: 35px !important;
+    margin: 0 !important;
+}
+.st-key-copy-btn-container button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 50% !important;
+}
+/* Ensure the popup window for the files is wide enough */
+div[data-testid="stPopoverContent"] {
+    width: 350px !important;
+    min-width: 350px !important;
+}
+
+/* Keeps your clip button square and clean (matches your previous fix) */
+div[data-testid="stPopover"] > button {
+    height: 45px !important;
+    width: 45px !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: transparent !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Hide the arrow next to the clip */
+div[data-testid="stPopover"] [data-testid="stIconInline"] {
+    display: none !important;
 }

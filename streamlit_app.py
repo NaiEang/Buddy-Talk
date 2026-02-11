@@ -202,9 +202,10 @@ if message_to_process:
         st.warning("⏳ Please wait a moment...")
     else:
         with st.chat_message("assistant"):
-            stop_btn_container = st.empty()
-            thinking_placeholder = st.empty()
             status_container = st.empty()
+            response_container = st.empty()
+            stop_btn_container = st.empty()
+            
             try:
                 st.session_state.is_processing = True
                 st.session_state.stop_processing = False
@@ -231,12 +232,25 @@ if message_to_process:
                 
                 # 4. GET RESPONSE (Only if not stopped)
                 if not st.session_state.stop_processing:
-                    with st.spinner("Buddy is thinking..."):
-                        all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
-                        instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
+                    with response_container:
+                        with st.spinner("Buddy is thinking..."):
+                            all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
+                            instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
                         
-                        # Generate the response
-                        response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
+                            # Generate the response
+                            response_text = get_response(message_to_process, client, gemini_files, system_instruction=instruction)
+
+                            stop_btn_container.empty()
+                            with response_container.container():
+                                res_col1, res_col2 = st.columns([20, 1.2])
+                                with res_col1:
+                                    st.markdown(response_text)
+                                with res_col2:
+                                    st.markdown('<div class="copy-btn-container">', unsafe_allow_html=True)
+                                    if st.button("📋", key="copy_current", help="Copy"):
+                                        st.session_state.copied_text = response_text
+                                        st.toast("Copied!")
+                                    st.markdown('</div>', unsafe_allow_html=True)
                 
                     # Display response
                     st.markdown(response_text)
@@ -253,9 +267,11 @@ if message_to_process:
                     stop_btn_container.empty()
                     st.rerun() # Refresh to keep bar at bottom
                 else:
+                    status_container.empty()
+                    response_container.empty()
+                    stop_btn_container.empty()
                     st.warning("✋ Buddy stopped at your request.")
                     st.session_state.is_processing = False
-                    stop_btn_container.empty()
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")

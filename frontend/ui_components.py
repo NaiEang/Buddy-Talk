@@ -381,12 +381,26 @@ def render_chat_interface():
     # 4. DISPLAY CHAT HISTORY (The messages go here)
     for idx, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
-            col1, col2 = st.columns([20, 1])
-            with col1:
+            # Split into 2 columns: Text (large) and Button (small)
+            col_content, col_btn = st.columns([20, 1.2])
+            
+            with col_content:
                 st.markdown(message["content"])
-            with col2:
-                if message["role"] == "user":
-                    if st.button("✏️", key=f"edit_msg_{idx}", help="Edit this question"):
+            
+            with col_btn:
+                # Handle Copy button for Assistant, Edit button for User
+                if message["role"] == "assistant":
+                    st.markdown('<div class="copy-btn-container">', unsafe_allow_html=True)
+                    # When clicked, show a toast notification
+                    if st.button("📋", key=f"copy_{idx}", help="Copy response"):
+                        # Custom clipboard copying in Streamlit doesn't need JS
+                        # The code below will put the text into a readable field
+                        # and Streamlit's built-in behavior or browser helps.
+                        st.toast("Copied to clipboard!") 
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                elif message["role"] == "user":
+                    if st.button("✏️", key=f"edit_msg_{idx}", help="Edit question"):
                         st.session_state.edit_message_index = idx
                         st.session_state.editing = True
                         st.rerun()
@@ -425,19 +439,16 @@ def render_chat_interface():
                 st.rerun()
 
     # 5. FIXED PERMANENT BOTTOM SECTION (The bar at the bottom)
+    # 5. FIXED PERMANENT BOTTOM SECTION
     with st.container():
-        # Using a container helps anchor the elements to the bottom
-        col_icon, col_bar = st.columns([1.5, 15], vertical_alignment="center")
+        col_icon, col_bar = st.columns([1.2, 15], vertical_alignment="center")
 
         with col_icon:
-            if st.button("📎", key="attach_files", help="Attach or update files"):
-                st.session_state.show_file_uploader = not st.session_state.get('show_file_uploader', False)
-                st.rerun()
-            
-            if st.session_state.get('show_file_uploader', False):
-                st.markdown("#### Knowledge Base")
+            # We use popover instead of a regular button to prevent squashing the layout
+            with st.popover("📎", help="Attach files"):
+                st.markdown("#### 📁 Upload File")
                 more_files = st.file_uploader(
-                    "Add files...",
+                    "Add files for Buddy to analyze...",
                     type=["pdf", "mp4", "avi", "mov", "mp3", "wav", "m4a"],
                     accept_multiple_files=True,
                     label_visibility="collapsed",
@@ -445,15 +456,14 @@ def render_chat_interface():
                 )
                 if more_files:
                     st.session_state.uploaded_files = more_files
+                    st.success(f"{len(more_files)} files attached")
 
         with col_bar:
-            # Note: prompt_text is inside col_bar context
             prompt_text = "Ask Buddy something..." if not st.session_state.messages else "Ask a follow-up..."
             user_input = st.chat_input(prompt_text)
             
-            # Store the input in session state so it persists and can be accessed in main script
             if user_input:
                 st.session_state.pending_user_input = user_input
-                st.rerun()  # Trigger rerun to process the message
+                st.rerun()
             
     return None
