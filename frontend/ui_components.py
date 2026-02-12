@@ -134,6 +134,9 @@ def render_sidebar(user):
         section[data-testid="stSidebar"] > div:first-child {{
             padding-top: 0 !important;
         }}
+        section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
+            padding-top: 0.5rem !important;
+        }}
         /* Position the collapse button row */
         [data-testid="stSidebarCollapseButton"] {{
             top: 0.2rem !important;
@@ -220,9 +223,14 @@ def render_sidebar(user):
     </style>
     """, unsafe_allow_html=True)
     
-    # --- Header ---
+    # --- Header with icon ---
+    import base64 as _b64, pathlib as _pl
+    _icon_data = _b64.b64encode(_pl.Path("asset/icon.png").read_bytes()).decode()
     st.sidebar.markdown(
-        '<h2 style="margin-top: 0; margin-bottom: 0.6rem; padding-top: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; line-height: 1; text-align: center;">B<span style="color: #818cf8;">U</span>DDY AI</h2>',
+        f'<div style="text-align: center; margin-top: -0.5rem; margin-bottom: 0.1rem; padding-top: 0;">'
+        f'<img src="data:image/png;base64,{_icon_data}" style="width: 68px; height: 68px; border-radius: 12px;" />'
+        f'</div>'
+        f'<h2 style="margin-top: 0.15rem; margin-bottom: 0.5rem; padding-top: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; line-height: 1; text-align: center;">B<span style="color: #818cf8;">U</span>DDY AI</h2>',
         unsafe_allow_html=True,
     )
     

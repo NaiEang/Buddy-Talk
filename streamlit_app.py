@@ -33,6 +33,11 @@ _global_css = _load_css("frontend/styles.css")
 if _global_css:
     st.markdown(_global_css, unsafe_allow_html=True)
 
+# Load app icon as base64 for inline use
+import base64, pathlib
+_icon_bytes = pathlib.Path("asset/icon.png").read_bytes()
+_icon_b64 = base64.b64encode(_icon_bytes).decode()
+
 init_google_oauth()
 client = get_gemini_client()
 
@@ -250,7 +255,13 @@ elif st.session_state.get('flashcard_mode', False):
 else:
 
     # Main content area
-    st.markdown('# B<span style="color: #818cf8;">U</span>DDY AI', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="display: flex; align-items: center; gap: 12px;">'
+        f'<img src="data:image/png;base64,{_icon_b64}" style="width: 42px; height: 42px; border-radius: 8px;" />'
+        f'<h1 style="margin: 0; padding: 0;">B<span style="color: #818cf8;">U</span>DDY AI</h1>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown("Powered by Google Gemini")
 
     # If not logged in, show auth button for signup opportunity
