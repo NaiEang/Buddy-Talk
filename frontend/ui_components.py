@@ -117,6 +117,36 @@ def render_sidebar(user):
     # --- Navigation CSS (dynamic active state) ---
     st.sidebar.markdown(f"""
     <style>
+        /* ===== Subtle sidebar background pattern ===== */
+        [data-testid="stSidebar"] {{
+            background:
+                /* Diagonal wave stripes — subtle tiger-like pattern */
+                repeating-linear-gradient(
+                    135deg,
+                    transparent,
+                    transparent 18px,
+                    rgba(255, 255, 255, 0.015) 18px,
+                    rgba(255, 255, 255, 0.015) 22px,
+                    transparent 22px,
+                    transparent 32px,
+                    rgba(255, 255, 255, 0.02) 32px,
+                    rgba(255, 255, 255, 0.02) 35px
+                ),
+                repeating-linear-gradient(
+                    -135deg,
+                    transparent,
+                    transparent 24px,
+                    rgba(139, 92, 246, 0.025) 24px,
+                    rgba(139, 92, 246, 0.025) 27px,
+                    transparent 27px,
+                    transparent 40px,
+                    rgba(139, 92, 246, 0.015) 40px,
+                    rgba(139, 92, 246, 0.015) 43px
+                ),
+                /* Base color */
+                var(--secondary-background-color, #262730) !important;
+        }}
+
         /* ===== Disable sidebar resize handle ===== */
         [data-testid="stSidebar"] > div:first-child {{
             width: 300px !important;
@@ -254,11 +284,11 @@ def render_sidebar(user):
             content: "Home";
             font-size: 15px;
             background-image: url('data:image/png;base64,{_nav_icons["home"]}');
-            background-size: 18px 18px;
+            background-size: 22px 22px;
             background-repeat: no-repeat;
             background-position: left center;
             padding-left: 28px;
-            margin-left: -15px;
+            margin-left: -20px;
         }}
         """
     if _nav_icons.get('analytic'):

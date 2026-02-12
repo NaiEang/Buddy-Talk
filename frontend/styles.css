@@ -22,6 +22,17 @@
     z-index: 999 !important;
 }
 
+/* ── 2b. Chat input purple focus border ──────────────────── */
+[data-testid="stChatInput"],
+[data-testid="stChatInput"] > div {
+    border-color: #818cf8 !important;
+}
+[data-testid="stChatInput"]:focus-within,
+[data-testid="stChatInput"]:focus-within > div {
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 0 1px #8b5cf6 !important;
+}
+
 /* ── 3. Chat messages ────────────────────────────────────── */
 .messages-scroll-container {
     max-height: calc(100vh - 150px) !important;
