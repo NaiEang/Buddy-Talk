@@ -150,3 +150,122 @@ def delete_flashcards_from_firestore(user_id, session_id):
     except Exception as e:
         print(f"❌ Error deleting flashcards: {str(e)}")
         return False
+    
+def save_persona_to_firestore(user_id, persona_name, persona_instructions):
+    """Save a custom persona to Firestore.
+    
+    Args:
+        user_id: User's unique ID
+        persona_name: Name of the persona (e.g., "Python Mentor")
+        persona_instructions: System instructions for the persona
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    try:
+        print(f"💾 Saving persona '{persona_name}' for user {user_id}")
+        
+        persona_ref = db.collection("users").document(user_id).collection("personas").document(persona_name)
+        persona_data = {
+            'name': persona_name,
+            'instructions': persona_instructions,
+            'created_at': __import__('datetime').datetime.now(),
+            'updated_at': __import__('datetime').datetime.now()
+        }
+        
+        persona_ref.set(persona_data, merge=True)
+        print(f"  ✅ Persona saved successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error saving persona: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def load_user_personas(user_id):
+    """Load all custom personas for a user from Firestore.
+    
+    Args:
+        user_id: User's unique ID
+    
+    Returns:
+        dict: Dictionary of {persona_name: persona_instructions}
+    """
+    db = get_db()
+    try:
+        print(f"📖 Loading personas for user {user_id}")
+        
+        personas_ref = db.collection("users").document(user_id).collection("personas")
+        personas = personas_ref.stream()
+        
+        user_personas = {}
+        for persona in personas:
+            persona_data = persona.to_dict()
+            persona_name = persona_data.get('name', persona.id)
+            persona_instructions = persona_data.get('instructions', '')
+            user_personas[persona_name] = persona_instructions
+            print(f"  ✓ Loaded persona: {persona_name}")
+        
+        print(f"  ✅ Loaded {len(user_personas)} custom personas")
+        return user_personas
+        
+    except Exception as e:
+        print(f"❌ Error loading personas: {str(e)}")
+        return {}
+
+
+def delete_persona_from_firestore(user_id, persona_name):
+    """Delete a custom persona from Firestore.
+    
+    Args:
+        user_id: User's unique ID
+        persona_name: Name of the persona to delete
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    try:
+        print(f"🗑️ Deleting persona '{persona_name}' for user {user_id}")
+        
+        db.collection("users").document(user_id).collection("personas").document(persona_name).delete()
+        
+        print(f"  ✅ Persona deleted successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error deleting persona: {str(e)}")
+        return False
+
+
+def update_persona_in_firestore(user_id, persona_name, persona_instructions):
+    """Update an existing persona in Firestore.
+    
+    Args:
+        user_id: User's unique ID
+        persona_name: Name of the persona to update
+        persona_instructions: New system instructions for the persona
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    try:
+        print(f"🔄 Updating persona '{persona_name}' for user {user_id}")
+        
+        persona_ref = db.collection("users").document(user_id).collection("personas").document(persona_name)
+        persona_ref.update({
+            'instructions': persona_instructions,
+            'updated_at': __import__('datetime').datetime.now()
+        })
+        
+        print(f"  ✅ Persona updated successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error updating persona: {str(e)}")
+        # If update fails, try to save as new
+        return save_persona_to_firestore(user_id, persona_name, persona_instructions)

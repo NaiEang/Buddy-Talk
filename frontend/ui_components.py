@@ -461,8 +461,9 @@ def render_sidebar(user):
     elif active_tab == 'persona':
         # --- Persona Tab: Model/Persona Selection ---
         if user:
-            st.sidebar.markdown("##### Prompt Model")
+            st.sidebar.markdown("##### 🎭 Prompt Model")
             
+            # Combine default personas with custom personas from Firebase
             all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
             selected = st.sidebar.selectbox(
                 "Choose a persona:",
@@ -480,33 +481,80 @@ def render_sidebar(user):
             
             st.sidebar.markdown("")
             
-            # Create custom persona
-            with st.sidebar.expander("Create Custom Persona", expanded=False):
-                persona_name = st.text_input("Persona Name", placeholder="e.g., Python Mentor", key="new_persona_name", label_visibility="collapsed")
-                persona_instructions = st.text_area("Instructions", placeholder="e.g., You are a patient Python teacher.", height=50, key="new_persona_instructions", label_visibility="collapsed")
+            # Create/Edit custom persona
+            with st.sidebar.expander("➕ Create Custom Persona", expanded=False):
+                persona_name = st.text_input(
+                    "Persona Name", 
+                    placeholder="e.g., Python Mentor", 
+                    key="new_persona_name", 
+                    label_visibility="collapsed"
+                )
+                persona_instructions = st.text_area(
+                    "Instructions", 
+                    placeholder="e.g., You are a patient Python teacher who explains concepts step-by-step...", 
+                    height=100, 
+                    key="new_persona_instructions", 
+                    label_visibility="collapsed"
+                )
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("Save", key="save_persona_btn", use_container_width=True):
+                    if st.button("💾 Save", key="save_persona_btn", use_container_width=True):
                         if persona_name and persona_name.strip() and persona_instructions and persona_instructions.strip():
-                            if persona_name not in all_personas:
-                                st.session_state.custom_personas[persona_name] = persona_instructions
-                                st.session_state.selected_persona = persona_name
-                                st.success(f"✅ Added!")
-                                st.rerun()
+                            # Check if it's a default persona (can't override)
+                            if persona_name in PERSONAS:
+                                st.error("❌ Can't override default personas!")
                             else:
-                                st.error("Exists!")
+                                # Import Firebase functions
+                                from backend.firebase_service import save_persona_to_firestore
+                                
+                                # Save to Firebase
+                                success = save_persona_to_firestore(
+                                    user['user_id'],
+                                    persona_name,
+                                    persona_instructions
+                                )
+                                
+                                if success:
+                                    # Add to local session state
+                                    if 'custom_personas' not in st.session_state:
+                                        st.session_state.custom_personas = {}
+                                    st.session_state.custom_personas[persona_name] = persona_instructions
+                                    st.session_state.selected_persona = persona_name
+                                    
+                                    st.success(f"✅ Persona '{persona_name}' saved!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to save persona")
                         else:
-                            st.warning("Fill both!")
+                            st.warning("⚠️ Please fill in both name and instructions")
                 
                 with col2:
+                    # Only show delete for custom personas (not default ones)
                     if st.session_state.selected_persona in st.session_state.get('custom_personas', {}):
-                        if st.button("Delete", key="delete_persona_btn", use_container_width=True):
-                            del st.session_state.custom_personas[st.session_state.selected_persona]
-                            st.session_state.selected_persona = 'Default'
-                            st.rerun()
+                        if st.button("🗑️ Delete", key="delete_persona_btn", use_container_width=True):
+                            # Import Firebase functions
+                            from backend.firebase_service import delete_persona_from_firestore
+                            
+                            persona_to_delete = st.session_state.selected_persona
+                            
+                            # Delete from Firebase
+                            success = delete_persona_from_firestore(
+                                user['user_id'],
+                                persona_to_delete
+                            )
+                            
+                            if success:
+                                # Remove from local session state
+                                del st.session_state.custom_personas[persona_to_delete]
+                                st.session_state.selected_persona = 'Default'
+                                
+                                st.success(f"✅ Persona '{persona_to_delete}' deleted!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to delete persona")
         else:
-            st.sidebar.info("👤 Sign in to customize personas")
+            st.sidebar.info("👤 Sign in to create custom personas")
     
     # =============================================
     # PROFILE SECTION (fixed to bottom of sidebar)

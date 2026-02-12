@@ -8,7 +8,10 @@ import datetime
 import uuid
 import time
 from backend.firebase_service import (
-    save_user_to_firestore, save_chat_to_firestore, load_user_chats, get_db
+    save_user_to_firestore, save_chat_to_firestore, load_user_chats, 
+    load_user_flashcards, delete_flashcards_from_firestore,
+    load_user_personas, save_persona_to_firestore, delete_persona_from_firestore,
+    get_db
 )
 from backend.auth_service import (
     init_google_oauth, get_authorization_url, exchange_code_for_token, verify_google_token
@@ -159,6 +162,9 @@ if not user:
             flashcard_sets = load_user_flashcards(user['user_id'])
             st.session_state.flashcard_sets = flashcard_sets
 
+            custom_personas = load_user_personas(user['user_id'])
+            st.session_state.custom_personas = custom_personas  
+
 # Check for OAuth callback
 query_params = st.query_params
 if 'code' in query_params and not user:
@@ -244,6 +250,13 @@ if 'code' in query_params and not user:
             # Load user's previous chats from Firestore
             chats = load_user_chats(user['user_id'])
             st.session_state.chat_sessions = chats
+
+            flashcard_sets = load_user_flashcards(stored_user['user_id'])
+            st.session_state.flashcard_sets = flashcard_sets
+
+            # Load user's custom personas  ← ADD THIS
+            custom_personas = load_user_personas(stored_user['user_id'])
+            st.session_state.custom_personas = custom_personas
             
             # Create server-side session and put token in URL
             session_token = create_session(user)
