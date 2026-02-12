@@ -59,24 +59,8 @@ def save_flashcards_to_firestore(user_id, session_id, flashcards, title):
     """Save flashcard set to Firestore - WITH DEBUG OUTPUT."""
     db = get_db()
     try:
-        # DEBUG: Print what we're saving
-        print("=" * 60)
-        print(f"🔍 DEBUG: Saving flashcards to Firestore")
-        print(f"  📍 User ID: {user_id}")
-        print(f"  📍 Session ID: {session_id}")
-        print(f"  📍 Title: {title}")
-        print(f"  📍 Flashcards type: {type(flashcards)}")
-        print(f"  📍 Number of cards: {len(flashcards) if isinstance(flashcards, list) else 'NOT A LIST!'}")
-        
-        if isinstance(flashcards, list) and len(flashcards) > 0:
-            print(f"  📍 First card preview: {flashcards[0]}")
-            print(f"  📍 All cards valid: {all('question' in c and 'answer' in c for c in flashcards)}")
-        else:
-            print(f"  ⚠️  WARNING: flashcards is not a valid list!")
-            print(f"  ⚠️  Actual value: {flashcards}")
-        
         flashcard_ref = db.collection("users").document(user_id).collection("flashcards").document(session_id)
-        
+    
         # Create the document data
         flashcard_data = {
             'title': title,
@@ -85,10 +69,7 @@ def save_flashcards_to_firestore(user_id, session_id, flashcards, title):
             'updated_at': datetime.datetime.now(),
             'created_at': datetime.datetime.now()
         }
-        
-        print(f"  📍 Document structure: {list(flashcard_data.keys())}")
-        print(f"  📍 Saving to path: users/{user_id}/flashcards/{session_id}")
-        
+    
         # Save to Firestore
         flashcard_ref.set(flashcard_data, merge=True)
         
@@ -108,7 +89,6 @@ def load_user_flashcards(user_id):
     """Load all flashcard sets for a user from Firestore - WITH DEBUG OUTPUT."""
     db = get_db()
     try:
-        print(f"🔍 Loading flashcards for user: {user_id}")
         
         flashcards_ref = db.collection("users").document(user_id).collection("flashcards")
         flashcard_sets = flashcards_ref.order_by("updated_at", direction=firestore.Query.DESCENDING).stream()
@@ -117,19 +97,12 @@ def load_user_flashcards(user_id):
         for flashcard_set in flashcard_sets:
             flashcard_data = flashcard_set.to_dict()
             
-            # DEBUG: Check what we loaded
-            print(f"  📍 Loaded flashcard set: {flashcard_set.id}")
-            print(f"     Title: {flashcard_data.get('title', 'NO TITLE')}")
-            print(f"     Cards type: {type(flashcard_data.get('cards'))}")
-            print(f"     Cards count: {len(flashcard_data.get('cards', []))}")
-            
             user_flashcards[flashcard_set.id] = {
                 'title': flashcard_data.get('title', 'Untitled Flashcards'),
-                'cards': flashcard_data.get('cards', []),  # This should be the full list
+                'cards': flashcard_data.get('cards', []),
                 'timestamp': flashcard_data.get('updated_at', __import__('datetime').datetime.now())
             }
         
-        print(f"  ✅ Loaded {len(user_flashcards)} flashcard sets")
         return user_flashcards
         
     except Exception as e:
@@ -143,29 +116,15 @@ def delete_flashcards_from_firestore(user_id, session_id):
     """Delete a flashcard set from Firestore."""
     db = get_db()
     try:
-        print(f"🗑️  Deleting flashcard set: {session_id}")
         db.collection("users").document(user_id).collection("flashcards").document(session_id).delete()
-        print(f"  ✅ Deleted successfully")
         return True
     except Exception as e:
         print(f"❌ Error deleting flashcards: {str(e)}")
         return False
     
 def save_persona_to_firestore(user_id, persona_name, persona_instructions):
-    """Save a custom persona to Firestore.
-    
-    Args:
-        user_id: User's unique ID
-        persona_name: Name of the persona (e.g., "Python Mentor")
-        persona_instructions: System instructions for the persona
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
     db = get_db()
-    try:
-        print(f"💾 Saving persona '{persona_name}' for user {user_id}")
-        
+    try:        
         persona_ref = db.collection("users").document(user_id).collection("personas").document(persona_name)
         persona_data = {
             'name': persona_name,
@@ -175,7 +134,6 @@ def save_persona_to_firestore(user_id, persona_name, persona_instructions):
         }
         
         persona_ref.set(persona_data, merge=True)
-        print(f"  ✅ Persona saved successfully!")
         return True
         
     except Exception as e:
@@ -207,9 +165,7 @@ def load_user_personas(user_id):
             persona_name = persona_data.get('name', persona.id)
             persona_instructions = persona_data.get('instructions', '')
             user_personas[persona_name] = persona_instructions
-            print(f"  ✓ Loaded persona: {persona_name}")
-        
-        print(f"  ✅ Loaded {len(user_personas)} custom personas")
+
         return user_personas
         
     except Exception as e:
@@ -218,22 +174,10 @@ def load_user_personas(user_id):
 
 
 def delete_persona_from_firestore(user_id, persona_name):
-    """Delete a custom persona from Firestore.
-    
-    Args:
-        user_id: User's unique ID
-        persona_name: Name of the persona to delete
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
+    """Delete a custom persona from Firestore."""
     db = get_db()
     try:
-        print(f"🗑️ Deleting persona '{persona_name}' for user {user_id}")
-        
         db.collection("users").document(user_id).collection("personas").document(persona_name).delete()
-        
-        print(f"  ✅ Persona deleted successfully!")
         return True
         
     except Exception as e:
@@ -242,16 +186,7 @@ def delete_persona_from_firestore(user_id, persona_name):
 
 
 def update_persona_in_firestore(user_id, persona_name, persona_instructions):
-    """Update an existing persona in Firestore.
-    
-    Args:
-        user_id: User's unique ID
-        persona_name: Name of the persona to update
-        persona_instructions: New system instructions for the persona
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
+    """Update an existing persona in Firestore."""
     db = get_db()
     try:
         print(f"🔄 Updating persona '{persona_name}' for user {user_id}")
@@ -261,11 +196,9 @@ def update_persona_in_firestore(user_id, persona_name, persona_instructions):
             'instructions': persona_instructions,
             'updated_at': __import__('datetime').datetime.now()
         })
-        
-        print(f"  ✅ Persona updated successfully!")
+
         return True
         
     except Exception as e:
         print(f"❌ Error updating persona: {str(e)}")
-        # If update fails, try to save as new
         return save_persona_to_firestore(user_id, persona_name, persona_instructions)

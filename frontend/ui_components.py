@@ -706,22 +706,22 @@ def render_chat_interface():
             if message["role"] == "assistant":
                 st.markdown(message["content"])
                 
-                # ── Copy button: store text in hidden div, copy via JS ──
-                import html as _html
-                _safe_content = _html.escape(message["content"])
-                _uid = f"copytext_{idx}"
-                _copy_html = (
-                    f'<div id="{_uid}" style="display:none;">{_safe_content}</div>'
-                    f'<button class="msg-action-btn" id="copybtn_{idx}" onclick="'
-                    f"var t=document.getElementById('{_uid}').textContent;"
-                    f"navigator.clipboard.writeText(t).then(function(){{"
-                    f"var b=document.getElementById('copybtn_{idx}');"
-                    f"b.innerHTML='&#10003; Copied';"
-                    f"setTimeout(function(){{b.innerHTML='&#128203; Copy';}},1500);"
-                    f"}});"
-                    f'" title="Copy response">&#128203; Copy</button>'
-                )
-                st.markdown(_copy_html, unsafe_allow_html=True)
+                # # ── Copy button: store text in hidden div, copy via JS ──
+                # import html as _html
+                # _safe_content = _html.escape(message["content"])
+                # _uid = f"copytext_{idx}"
+                # _copy_html = (
+                #     f'<div id="{_uid}" style="display:none;">{_safe_content}</div>'
+                #     f'<button class="msg-action-btn" id="copybtn_{idx}" onclick="'
+                #     f"var t=document.getElementById('{_uid}').textContent;"
+                #     f"navigator.clipboard.writeText(t).then(function(){{"
+                #     f"var b=document.getElementById('copybtn_{idx}');"
+                #     f"b.innerHTML='&#10003; Copied';"
+                #     f"setTimeout(function(){{b.innerHTML='&#128203; Copy';}},1500);"
+                #     f"}});"
+                #     f'" title="Copy response">&#128203; Copy</button>'
+                # )
+                # st.markdown(_copy_html, unsafe_allow_html=True)
                 
                 # File uploader only below the LAST assistant response
                 if idx == last_assistant_idx:
