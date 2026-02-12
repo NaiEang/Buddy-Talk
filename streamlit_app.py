@@ -251,11 +251,11 @@ if 'code' in query_params and not user:
             chats = load_user_chats(user['user_id'])
             st.session_state.chat_sessions = chats
 
-            flashcard_sets = load_user_flashcards(stored_user['user_id'])
+            flashcard_sets = load_user_flashcards(user['user_id'])
             st.session_state.flashcard_sets = flashcard_sets
 
             # Load user's custom personas  ← ADD THIS
-            custom_personas = load_user_personas(stored_user['user_id'])
+            custom_personas = load_user_personas(user['user_id'])
             st.session_state.custom_personas = custom_personas
             
             # Create server-side session and put token in URL
