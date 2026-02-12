@@ -206,7 +206,7 @@ if 'code' in query_params and not user:
     </style>
     <div class="welcome-wrap">
         <div class="welcome-icon"><img src="data:image/png;base64,{_icon_b64}" alt="Buddy AI" /></div>
-        <div class="welcome-title">Welcome to BUDDY AI</div>
+        <div class="welcome-title">Welcome to B<span style="color: #8b5cf6;">U</span>DDY AI</div>
         <div class="welcome-dots"><span></span><span></span><span></span></div>
         <div class="welcome-sub">Signing you in…</div>
     </div>
