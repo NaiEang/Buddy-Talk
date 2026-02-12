@@ -154,6 +154,11 @@ if not user:
             chats = load_user_chats(stored_user['user_id'])
             st.session_state.chat_sessions = chats
 
+            # Load user's flashcard sets
+            from backend.firebase_service import load_user_flashcards
+            flashcard_sets = load_user_flashcards(user['user_id'])
+            st.session_state.flashcard_sets = flashcard_sets
+
 # Check for OAuth callback
 query_params = st.query_params
 if 'code' in query_params and not user:
@@ -228,6 +233,10 @@ if 'code' in query_params and not user:
             }
             
             st.session_state.user = user
+
+            from backend.firebase_service import load_user_flashcards
+            flash_sets = load_user_flashcards(user['user_id'])
+            st.session_state.flashcard_sets = flash_sets
             
             # Save user to Firestore
             save_user_to_firestore(user)
@@ -251,6 +260,9 @@ render_sidebar(user)
 if st.session_state.get('sidebar_tab') == 'analytics':
     render_analytics_page()
 elif st.session_state.get('flashcard_mode', False):
+    if user and not st.session_state.get('flashcard_sets'):
+        from backend.firebase_service import load_user_flashcards
+        st.session_state.flashcard_sets = load_user_flashcards(user['user_id'])
     render_flashcard_interface()
 else:
 

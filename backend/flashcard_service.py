@@ -78,6 +78,13 @@ Return ONLY the JSON array, nothing else."""
             if not isinstance(card, dict) or 'question' not in card or 'answer' not in card:
                 raise ValueError("Invalid flashcard format")
         
+        # Add IDs to each flashcard
+        import uuid
+        import datetime
+        for card in flashcards:
+            card['id'] = str(uuid.uuid4())
+            card['created_at'] = datetime.datetime.now().isoformat()
+        
         return flashcards
         
     except json.JSONDecodeError as e:
@@ -93,3 +100,42 @@ Return ONLY the JSON array, nothing else."""
             "question": "Error generating flashcards", 
             "answer": f"An error occurred: {str(e)}"
         }]
+
+
+def save_flashcard_set(user_id, flashcard_set):
+    """Save a complete set of flashcards to Firestore.
+    
+    Args:
+        user_id: The user's ID
+        flashcard_set: Dictionary containing set metadata and flashcards
+            {
+                'set_id': str,
+                'title': str,
+                'flashcards': list of flashcard dicts,
+                'topic': str (optional),
+                'created_at': str (ISO format datetime)
+            }
+    """
+    from backend.firebase_service import get_db
+    import datetime
+    
+    db = get_db()
+    set_id = flashcard_set.get('set_id') or str(__import__('uuid').uuid4())
+    
+    # Save the set metadata
+    db.collection("users").document(user_id).collection("flashcard_sets").document(set_id).set({
+        "set_id": set_id,
+        "title": flashcard_set.get('title', 'Untitled Set'),
+        "topic": flashcard_set.get('topic', ''),
+        "card_count": len(flashcard_set.get('flashcards', [])),
+        "created_at": flashcard_set.get('created_at', datetime.datetime.now().isoformat()),
+        "updated_at": datetime.datetime.now().isoformat()
+    }, merge=True)
+    
+    # Save individual flashcards
+    for flashcard in flashcard_set.get('flashcards', []):
+        card_id = flashcard.get('id') or str(__import__('uuid').uuid4())
+        flashcard['set_id'] = set_id  # Link to the set
+        db.collection("users").document(user_id).collection("flashcards").document(card_id).set(
+            flashcard, merge=True
+        )
