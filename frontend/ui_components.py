@@ -432,7 +432,7 @@ def render_sidebar(user):
     elif active_tab == 'persona':
         # --- Persona Tab: Model/Persona Selection ---
         if user:
-            st.sidebar.markdown("##### 🎭 Prompt Model")
+            st.sidebar.markdown("##### Prompt Model")
             
             all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
             selected = st.sidebar.selectbox(
@@ -452,7 +452,7 @@ def render_sidebar(user):
             st.sidebar.markdown("")
             
             # Create custom persona
-            with st.sidebar.expander("➕ Create Custom Persona", expanded=False):
+            with st.sidebar.expander("Create Custom Persona", expanded=False):
                 persona_name = st.text_input("Persona Name", placeholder="e.g., Python Mentor", key="new_persona_name", label_visibility="collapsed")
                 persona_instructions = st.text_area("Instructions", placeholder="e.g., You are a patient Python teacher.", height=50, key="new_persona_instructions", label_visibility="collapsed")
                 
