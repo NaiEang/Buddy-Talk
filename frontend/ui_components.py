@@ -454,6 +454,35 @@ def render_sidebar(user):
                             st.rerun()
         else:
             st.sidebar.caption("No chats yet")
+
+                # Show saved flashcard sets if user is logged in
+        if st.user and st.session_state.get('flashcard_sets'):
+            st.sidebar.markdown("##### 📚 Saved Flashcard Sets")
+            for flashcard_id, flashcard_data in sorted(
+                st.session_state.flashcard_sets.items(),
+                key=lambda x: x[1].get("timestamp", datetime.datetime.now()),
+                reverse=True
+                )[:5]:  # Show only 5 most recent
+                col1, col2 = st.sidebar.columns([4, 1])
+                with col1:
+                    if st.sidebar.button(
+                        flashcard_data['title'][:30] + "...",
+                        key=f"flashcard_{flashcard_id}",
+                        use_container_width=True
+                ):
+                        st.session_state.flashcards = flashcard_data['cards']
+                        st.session_state.current_card_index = 0
+                        st.session_state.card_flipped = False
+                        st.session_state.current_flashcard_id = flashcard_id
+                        st.session_state.flashcard_mode = True
+                        st.rerun()
+                with col2:
+                    if st.sidebar.button("×", key=f"delete_flashcard_{flashcard_id}", help="Delete"):
+                        from backend.firebase_service import delete_flashcards_from_firestore
+                        delete_flashcards_from_firestore(st.user['user_id'], flashcard_id)
+                        del st.session_state.flashcard_sets[flashcard_id]
+                st.rerun()
+
     
     elif active_tab == 'analytics':
         # --- Analytics Tab: summary shown in sidebar ---
@@ -649,11 +678,12 @@ def render_chat_interface():
                 # File uploader only below the LAST assistant response
                 if idx == last_assistant_idx:
                     st.markdown("---")
+                    sid = st.session_state.get('current_session_id', 'new')
                     follow_up_files = st.file_uploader(
                         "Upload files for follow-up",
                         type=["pdf", "mp4", "avi", "mov", "mp3", "wav", "m4a"],
                         accept_multiple_files=True,
-                        key=f"uploader_{idx}",
+                        key=f"uploader_{sid}_{idx}", # FIXED KEY
                         label_visibility="collapsed"
                     )
                     

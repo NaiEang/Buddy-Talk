@@ -1,6 +1,8 @@
-"""Flashcard UI components with interactive card flipping."""
+"""Flashcard UI components with interactive card flipping and save/load."""
+from pkgutil import get_data
 import streamlit as st
-
+import uuid
+import datetime
 
 def render_flashcard_interface():
     """Render the flashcard study interface."""
@@ -164,14 +166,23 @@ def render_flashcard_interface():
         st.session_state.current_card_index = 0
     if 'card_flipped' not in st.session_state:
         st.session_state.card_flipped = False
+    if 'current_flashcard_id' not in st.session_state:
+        st.session_state.current_flashcard_id = None
+    if 'flashcard_sets' not in st.session_state:
+        st.session_state.flashcard_sets = {}
     
     # Header
     st.markdown("# Flashcard Study Mode")
     st.markdown("*Generate and study flashcards from your documents*")
     st.markdown("---")
     
+    user = st.session_state.get('user')
+    
     # Check if flashcards exist
     if not st.session_state.flashcards:
+
+        
+
         # Upload and generate section
         st.markdown('<div class="upload-section">📚 Create Flashcards</div>', unsafe_allow_html=True)
         st.markdown('<div class="upload-subtitle">Upload files or describe a topic to generate study cards</div>', unsafe_allow_html=True)
@@ -233,10 +244,60 @@ def render_flashcard_interface():
                         st.session_state.flashcards = flashcards
                         st.session_state.current_card_index = 0
                         st.session_state.card_flipped = False
+                        
+                        # Create new flashcard set ID
+                        st.session_state.current_flashcard_id = str(uuid.uuid4())[:8]
+                        
+                        # Auto-save if user is logged in
+                        user = st.session_state.get('user')
+                        if user:
+                            from backend.firebase_service import save_flashcards_to_firestore, load_user_flashcards
+                            st.session_state.flashcard_sets = load_user_flashcards(user['user_id'])
+                            title = topic[:50] if topic else "Flashcard Set"
+                            save_flashcards_to_firestore(
+                                user['user_id'],
+                                st.session_state.current_flashcard_id,
+                                flashcards,
+                                title
+                            )
+                            # Add to local session
+                            st.session_state.flashcard_sets[st.session_state.current_flashcard_id] = {
+                                'title': title,
+                                'cards': flashcards,
+                                'timestamp': datetime.datetime.now()
+                            }
+                            st.success(f"✅ Flashcards saved!")
+                        
                         st.rerun()
                 else:
                     st.warning("⚠️ Please provide a topic or upload files to generate flashcards")
         
+        if user and st.session_state.get('flashcard_sets'):
+            st.markdown("### 📂 Your Flashcard Sets")
+
+            for set_id, set_data in st.session_state.flashcard_sets.items():
+                with st.expander(f"📖 {set_data.get('title', 'Untitled Set')}", expanded=False):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        cards_in_set = set_data.get('cards', [])
+                        st.write(f"Total cards: {len(set_data.get('cards', []))}")
+                        st.caption(f"Created: {set_data.get('timestamp')}")
+                    with col2:
+                        # LOADING LOGIC: Clicking this loads the set into the active session
+                        if st.button("Study Now", key=f"load_{set_id}", use_container_width=True):
+                            st.session_state.flashcards = set_data['cards']
+                            st.session_state.current_flashcard_id = set_id
+                            st.session_state.current_card_index = 0
+                            st.session_state.card_flipped = False
+                            st.rerun()
+                        
+                        if st.button("Delete", key=f"del_{set_id}", use_container_width=True):
+                            from backend.firebase_service import delete_flashcards_from_firestore
+                            delete_flashcards_from_firestore(st.session_state.user['user_id'], set_id)
+                            del st.session_state.flashcard_sets[set_id]
+                            st.rerun()
+                    st.markdown("---")
+                            
         # Tips section
         st.markdown("---")
         st.markdown("### 💡 Study Tips")
@@ -259,11 +320,42 @@ def render_flashcard_interface():
         if current_index < total_cards:
             current_card = st.session_state.flashcards[current_index]
             
-            # Progress indicator
-            st.markdown(
-                f'<div class="flashcard-progress">Card {current_index + 1} of {total_cards}</div>',
-                unsafe_allow_html=True
-            )
+            # Progress indicator with save button
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(
+                    f'<div class="flashcard-progress">Card {current_index + 1} of {total_cards}</div>',
+                    unsafe_allow_html=True
+                )
+            with col2:
+                user = st.session_state.get('user')
+                if user and st.button("💾 Save Set", key="save_flashcards", help="Save this flashcard set"):
+                    from backend.firebase_service import save_flashcards_to_firestore
+                    
+                    # Get or create flashcard ID
+                    if not st.session_state.current_flashcard_id:
+                        st.session_state.current_flashcard_id = str(uuid.uuid4())[:8]
+                    
+                    # Generate title from first card
+                    title = st.session_state.flashcards[0]['question'][:50] + "..."
+                    
+                    # Save to Firestore
+                    save_flashcards_to_firestore(
+                        user['user_id'],
+                        st.session_state.current_flashcard_id,
+                        st.session_state.flashcards,
+                        title
+                    )
+                    
+                    # Add to local session
+                    st.session_state.flashcard_sets[st.session_state.current_flashcard_id] = {
+                        'title': title,
+                        'cards': st.session_state.flashcards,
+                        'timestamp': datetime.datetime.now()
+                    }
+                    
+                    st.success("✅ Flashcards saved!")
+                    st.rerun()
             
             # Flashcard display
             flip_class = "flipped" if st.session_state.card_flipped else ""
@@ -327,10 +419,11 @@ def render_flashcard_interface():
             # Reset button
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🔄 Create New Flashcard Set", use_container_width=True):
+                if st.button("Finish Review", use_container_width=True):
                     st.session_state.flashcards = []
                     st.session_state.current_card_index = 0
                     st.session_state.card_flipped = False
+                    st.session_state.current_flashcard_id = None
                     st.rerun()
         
         else:
@@ -349,4 +442,5 @@ def render_flashcard_interface():
                     st.session_state.flashcards = []
                     st.session_state.current_card_index = 0
                     st.session_state.card_flipped = False
+                    st.session_state.current_flashcard_id = None
                     st.rerun()
