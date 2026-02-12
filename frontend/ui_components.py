@@ -568,15 +568,8 @@ def render_chat_interface():
                     )
                     
                     if follow_up_files:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Queue Files", use_container_width=True, key=f"queue_{idx}"):
-                                st.session_state.queued_files = follow_up_files
-                                st.success(f"✅ {len(follow_up_files)} file(s) queued!")
-                                st.rerun()
-                        with col2:
-                            if st.button("❌ Cancel", use_container_width=True, key=f"cancel_{idx}"):
-                                st.rerun()
+                        st.session_state.queued_files = follow_up_files
+                        st.success(f"✅ {len(follow_up_files)} file(s) uploaded!")
             
             elif message["role"] == "user":
                 # Check if this message is being edited
