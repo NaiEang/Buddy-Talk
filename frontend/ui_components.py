@@ -73,7 +73,7 @@ def render_auth_button():
     st.markdown(f"""
     <div style="display: flex; justify-content: center; align-items: center; min-height: 60vh;">
         <div style="text-align: center; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="color: #1f2937; margin-bottom: 0.5rem;">🤖 Welcome to BUDDY AI</h1>
+            <h1 style="color: #1f2937; margin-bottom: 0.5rem;">🤖 Welcome to B<span style="color: #8b5cf6;">U</span>DDY AI</h1>
             <p style="color: #6b7280; margin-bottom: 2rem;">Your AI-powered second brain assistant</p>
             <a href="{auth_url}" target="_self" style="
                 display: inline-flex;
@@ -234,6 +234,66 @@ def render_sidebar(user):
         unsafe_allow_html=True,
     )
     
+    # --- Load custom nav icons as base64 ---
+    import base64 as _b64_icons, pathlib as _pl_icons
+    _nav_icons = {}
+    for _icon_name in ['home', 'analytic', 'persona']:
+        try:
+            _nav_icons[_icon_name] = _b64_icons.b64encode(_pl_icons.Path(f"asset/custom_icons/{_icon_name}.png").read_bytes()).decode()
+        except:
+            _nav_icons[_icon_name] = None
+
+    # Inject CSS to replace emoji with custom icon images
+    _nav_icon_css = ""
+    if _nav_icons.get('home'):
+        _nav_icon_css += f"""
+        .st-key-nav_home button p {{
+            font-size: 0 !important;
+        }}
+        .st-key-nav_home button p::before {{
+            content: "Home";
+            font-size: 15px;
+            background-image: url('data:image/png;base64,{_nav_icons["home"]}');
+            background-size: 18px 18px;
+            background-repeat: no-repeat;
+            background-position: left center;
+            padding-left: 28px;
+            margin-left: -15px;
+        }}
+        """
+    if _nav_icons.get('analytic'):
+        _nav_icon_css += f"""
+        .st-key-nav_analytics button p {{
+            font-size: 0 !important;
+        }}
+        .st-key-nav_analytics button p::before {{
+            content: "Analytics";
+            font-size: 15px;
+            background-image: url('data:image/png;base64,{_nav_icons["analytic"]}');
+            background-size: 20px 20px;
+            background-repeat: no-repeat;
+            background-position: left center;
+            padding-left: 28px;
+        }}
+        """
+    if _nav_icons.get('persona'):
+        _nav_icon_css += f"""
+        .st-key-nav_persona button p {{
+            font-size: 0 !important;
+        }}
+        .st-key-nav_persona button p::before {{
+            content: "Persona";
+            font-size: 15px;
+            background-image: url('data:image/png;base64,{_nav_icons["persona"]}');
+            background-size: 20px 20px;
+            background-repeat: no-repeat;
+            background-position: left center;
+            padding-left: 28px;
+        }}
+        """
+    if _nav_icon_css:
+        st.sidebar.markdown(f"<style>{_nav_icon_css}</style>", unsafe_allow_html=True)
+
     # --- Navigation Tabs ---
     if st.sidebar.button("🏠  Home", key="nav_home", use_container_width=True):
         st.session_state.sidebar_tab = 'home'
@@ -401,7 +461,7 @@ def render_sidebar(user):
     elif active_tab == 'persona':
         # --- Persona Tab: Model/Persona Selection ---
         if user:
-            st.sidebar.markdown("##### 🎭 Prompt Model")
+            st.sidebar.markdown("##### Prompt Model")
             
             all_personas = {**PERSONAS, **st.session_state.get('custom_personas', {})}
             selected = st.sidebar.selectbox(
@@ -421,7 +481,7 @@ def render_sidebar(user):
             st.sidebar.markdown("")
             
             # Create custom persona
-            with st.sidebar.expander("➕ Create Custom Persona", expanded=False):
+            with st.sidebar.expander("Create Custom Persona", expanded=False):
                 persona_name = st.text_input("Persona Name", placeholder="e.g., Python Mentor", key="new_persona_name", label_visibility="collapsed")
                 persona_instructions = st.text_area("Instructions", placeholder="e.g., You are a patient Python teacher.", height=50, key="new_persona_instructions", label_visibility="collapsed")
                 
@@ -598,15 +658,8 @@ def render_chat_interface():
                     )
                     
                     if follow_up_files:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Queue Files", use_container_width=True, key=f"queue_{idx}"):
-                                st.session_state.queued_files = follow_up_files
-                                st.success(f"✅ {len(follow_up_files)} file(s) queued!")
-                                st.rerun()
-                        with col2:
-                            if st.button("❌ Cancel", use_container_width=True, key=f"cancel_{idx}"):
-                                st.rerun()
+                        st.session_state.queued_files = follow_up_files
+                        st.success(f"✅ {len(follow_up_files)} file(s) uploaded!")
             
             elif message["role"] == "user":
                 # Check if this message is being edited
