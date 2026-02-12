@@ -381,7 +381,29 @@ else:
                     instruction = all_personas.get(st.session_state.selected_persona, PERSONAS["Default"])
 
                     # Show "Buddy is thinking..." while waiting for first chunk
-                    status_container.markdown("💭 **Buddy is thinking...**")
+                    status_container.markdown("""
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                        .thinking-spinner {
+                            display: inline-block;
+                            width: 20px;
+                            height: 20px;
+                            border: 3px solid #818cf8;
+                            border-top: 3px solid transparent;
+                            border-radius: 50%;
+                            animation: spin 0.8s linear infinite;
+                            margin-right: 8px;
+                            vertical-align: middle;
+                        }
+                    </style>
+                    <div style="display: flex; align-items: center;">
+                        <span class="thinking-spinner"></span>
+                        <span>💭 <strong>Buddy is thinking...</strong></span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                     # Stop button with on_click callback so partial response survives rerun
                     def _stop_generation():
