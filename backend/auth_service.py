@@ -12,9 +12,10 @@ REDIRECT_URI = "http://localhost:8501"
 
 def init_google_oauth():
     """Initialize Google OAuth configuration."""
-    global GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+    global GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIRECT_URI
     GOOGLE_CLIENT_ID = st.secrets.get("google_oauth_client_id")
     GOOGLE_CLIENT_SECRET = st.secrets.get("google_oauth_client_secret")
+    REDIRECT_URI = st.secrets.get("google_oauth_redirect_uri", REDIRECT_URI)
 
 
 def get_authorization_url():
