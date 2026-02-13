@@ -21,13 +21,14 @@ Buddy AI is an advanced multimodal AI assistant powered by Google Gemini that he
 
 ## 🚀 Getting Started
 
+
 ### Prerequisites
 
-- Python 3.8 or higher
+- **Python 3.11** (recommended; Python 3.14 is not supported)
 - Google Gemini API key (free tier available)
 - Google Cloud Console account (for OAuth)
 - Firebase project (for database)
-- pip or conda for package management
+- pip for package management
 
 ### Installation
 
@@ -38,17 +39,18 @@ Buddy AI is an advanced multimodal AI assistant powered by Google Gemini that he
    cd Buddy-Talk
    ```
 
+
 2. **Create a virtual environment (recommended):**
 
    ```bash
-   # Using venv
-   python -m venv venv
+   # Using Python 3.11
+   py -3.11 -m venv .venv
    
    # Activate on Windows
-   venv\Scripts\activate
+   .venv\Scripts\activate
    
    # Activate on macOS/Linux
-   source venv/bin/activate
+   source .venv/bin/activate
    ```
 
 3. **Install dependencies:**
@@ -118,12 +120,13 @@ universe_domain = "googleapis.com"
 
 1. **Activate your virtual environment (Important!):**
 
+
    ```bash
    # On Windows
-   .\venv\Scripts\activate
+   .venv\Scripts\activate
    
    # On macOS/Linux
-   source venv/bin/activate
+   source .venv/bin/activate
    ```
 
 2. **Start the Streamlit app:**
@@ -185,13 +188,14 @@ Buddy-Talk/
 │   ├── __init__.py
 │   ├── auth_service.py              # Google OAuth 2.0 authentication
 │   ├── firebase_service.py          # Firestore database operations
-│   └── gemini_service.py            # Google Gemini API integration
+│   ├── gemini_service.py            # Google Gemini API integration
+│   └── ...
 ├── frontend/
 │   ├── __init__.py
-│   └── ui_components.py             # Sidebar, chat UI, personas
+│   ├── ui_components.py             # Sidebar, chat UI, personas
+│   └── ...
 ├── test/                            # Backup/test files
 ├── streamlit_app.py                 # Main application entry point
-├── check_models.py                  # Utility to check available models
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # This file
 ```
@@ -203,10 +207,22 @@ Buddy-Talk/
 - **Authentication**: Google OAuth 2.0 (optional)
 - **Database**: Firebase Firestore
 - **Architecture**: Modular (backend/frontend separation)
-- **Language**: Python 3.12+
+- **Language**: Python 3.11 (recommended)
 - **Key Libraries**: 
   - `streamlit` - Web framework
-  - `google-generativeai` - Gemini API
+   - `google-generativeai` - Gemini API (see note below)
+## ⚠️ Compatibility Note
+
+**Python 3.14 is not supported by Streamlit and some dependencies. Use Python 3.11 for best compatibility.**
+
+If you see errors related to threading, semaphores, or `watchdog`, downgrade your Python version to 3.11 and recreate your virtual environment.
+
+### "ModuleNotFoundError: No module named 'google.generativeai'"
+- **Solution**: Install the package with:
+   ```bash
+   pip install google-generativeai
+   ```
+   > **Note:** You may see a warning that support for `google-generativeai` is ending. For future compatibility, consider migrating to `google-genai` and updating your code accordingly.
   - `firebase-admin` - Firebase integration
   - `google-auth` - OAuth authentication
 
@@ -340,25 +356,3 @@ MODEL = "gemini-2.5-flash"              # AI model to use
 - [Streamlit Documentation](https://docs.streamlit.io)
 - [Firebase Documentation](https://firebase.google.com/docs)
 - [Google OAuth 2.0 Guide](https://developers.google.com/identity/protocols/oauth2)
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to:
-- Report bugs
-- Suggest new features
-- Submit pull requests
-
-## 📝 License
-
-This project is licensed under the Apache License 2.0 - see the license header in the source files for details.
-
-## 👨‍💻 Developer
-
-Built with ❤️ for your AI assistant needs.
-
----
-
-**Happy chatting with Buddy AI!** 🤖✨
----
-
-**Happy chatting with Buddy AI!** 🤖✨
