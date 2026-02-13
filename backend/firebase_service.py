@@ -73,13 +73,13 @@ def save_flashcards_to_firestore(user_id, session_id, flashcards, title):
         # Save to Firestore
         flashcard_ref.set(flashcard_data, merge=True)
         
-        print(f"  ✅     successful!")
+        print(f"  Success!")
         print("=" * 60)
         
         return True
     
     except Exception as e:
-        print(f"❌ ERROR saving flashcards: {str(e)}")
+        print(f"ERROR saving flashcards: {str(e)}")
         import traceback
         traceback.print_exc()
         return False
@@ -106,7 +106,7 @@ def load_user_flashcards(user_id):
         return user_flashcards
         
     except Exception as e:
-        print(f"❌ Error loading flashcards: {str(e)}")
+        print(f"Error loading flashcards: {str(e)}")
         import traceback
         traceback.print_exc()
         return {}
@@ -119,7 +119,7 @@ def delete_flashcards_from_firestore(user_id, session_id):
         db.collection("users").document(user_id).collection("flashcards").document(session_id).delete()
         return True
     except Exception as e:
-        print(f"❌ Error deleting flashcards: {str(e)}")
+        print(f"Error deleting flashcards: {str(e)}")
         return False
     
 def save_persona_to_firestore(user_id, persona_name, persona_instructions):
@@ -137,7 +137,7 @@ def save_persona_to_firestore(user_id, persona_name, persona_instructions):
         return True
         
     except Exception as e:
-        print(f"❌ Error saving persona: {str(e)}")
+        print(f"Error saving persona: {str(e)}")
         import traceback
         traceback.print_exc()
         return False
@@ -154,7 +154,7 @@ def load_user_personas(user_id):
     """
     db = get_db()
     try:
-        print(f"📖 Loading personas for user {user_id}")
+        print(f"Loading personas for user {user_id}")
         
         personas_ref = db.collection("users").document(user_id).collection("personas")
         personas = personas_ref.stream()
@@ -169,7 +169,7 @@ def load_user_personas(user_id):
         return user_personas
         
     except Exception as e:
-        print(f"❌ Error loading personas: {str(e)}")
+        print(f"Error loading personas: {str(e)}")
         return {}
 
 
@@ -181,7 +181,7 @@ def delete_persona_from_firestore(user_id, persona_name):
         return True
         
     except Exception as e:
-        print(f"❌ Error deleting persona: {str(e)}")
+        print(f"Error deleting persona: {str(e)}")
         return False
 
 
@@ -189,7 +189,7 @@ def update_persona_in_firestore(user_id, persona_name, persona_instructions):
     """Update an existing persona in Firestore."""
     db = get_db()
     try:
-        print(f"🔄 Updating persona '{persona_name}' for user {user_id}")
+        print(f"Updating persona '{persona_name}' for user {user_id}")
         
         persona_ref = db.collection("users").document(user_id).collection("personas").document(persona_name)
         persona_ref.update({
@@ -200,5 +200,5 @@ def update_persona_in_firestore(user_id, persona_name, persona_instructions):
         return True
         
     except Exception as e:
-        print(f"❌ Error updating persona: {str(e)}")
+        print(f"Error updating persona: {str(e)}")
         return save_persona_to_firestore(user_id, persona_name, persona_instructions)
