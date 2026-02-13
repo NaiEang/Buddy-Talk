@@ -1,10 +1,4 @@
-/* ============================================================
-   BUDDY AI — Global Stylesheet
-   Loaded once in streamlit_app.py right after st.set_page_config
-   ============================================================ */
-
-/* ── 1. Top spacing for main content (ALL pages) ─────────── */
-/*    Broadest possible selector set so this never fails.     */
+/* Custom CSS for Buddy AI chat interface */
 .block-container,
 .stMainBlockContainer,
 [data-testid="stMainBlockContainer"],

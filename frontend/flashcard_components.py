@@ -7,7 +7,6 @@ import datetime
 def render_flashcard_interface():
     """Render the flashcard study interface."""
     
-    # Custom CSS for flashcard animations with a distinctive aesthetic
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Libre+Baskerville:wght@400;700&display=swap');
@@ -366,12 +365,12 @@ def render_flashcard_interface():
                     <div class="flashcard-face flashcard-front">
                         <div class="flashcard-label">Question</div>
                         <div class="flashcard-content">{current_card['question']}</div>
-                        <div class="flashcard-hint">Click to reveal answer</div>
+                        <div class="flashcard-hint">Click button to reveal answer</div>
                     </div>
                     <div class="flashcard-face flashcard-back">
                         <div class="flashcard-label">Answer</div>
                         <div class="flashcard-content">{current_card['answer']}</div>
-                        <div class="flashcard-hint">Click to see question</div>
+                        <div class="flashcard-hint">Click button to see question</div>
                     </div>
                 </div>
             </div>
